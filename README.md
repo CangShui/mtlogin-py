@@ -16,7 +16,10 @@ pip install -r requirements.txt
 ```bash
 python mtlogin.py  --username "站点用户名"   --password "站点密码"   --totpsecret "TOTP密钥"   --tgbot-token "00000000000:AAAAAAAAAAAAAAAAAAAAAAA"  --tgbot-chat-id "-1000000000000"  --log-file /var/log/mtlogin.log   --db-path /root/mtlogin.db --verbose-config
 ```
-
+## 定时执行
+```bash
+nano /etc/crontab
+```
 ## 功能概览
 
 - 支持账号密码 + TOTP 二次验证登录
