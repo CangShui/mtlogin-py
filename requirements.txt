@@ -1,0 +1,4 @@
+pyotp>=2.9.0
+requests>=2.31.0
+curl-cffi>=0.7.0
+croniter>=2.0.5
