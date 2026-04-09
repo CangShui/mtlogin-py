@@ -4,7 +4,13 @@
 
 脚本会进行登录（或复用本地缓存 token），然后请求一组接口并尝试调用 `updateLastBrowse` 更新浏览状态；支持 Telegram/QQPush/Feishu/ntfy 通知。
 
-演示命令
+
+##安装依赖示例：
+
+```bash
+pip install -r requirements.txt
+```
+##快速开始
 ```bash
 python mtlogin.py  --username "站点用户名"   --password "站点密码"   --totpsecret "TOTP密钥"   --tgbot-token "00000000000:AAAAAAAAAAAAAAAAAAAAAAA"  --tgbot-chat-id "-1000000000000"  --log-file /var/log/mtlogin.log   --db-path /root/mtlogin.db --verbose-config
 ```
@@ -17,35 +23,6 @@ python mtlogin.py  --username "站点用户名"   --password "站点密码"   --
 - 支持代理
 - 支持失败通知与成功通知
 - 支持详细 HTTP 调试日志
-
-## 运行环境
-
-- Python 3.9+
-- 依赖包：
-  - `pyotp`
-  - `requests`
-  - `curl_cffi`
-  - `croniter`
-
-安装依赖示例：
-
-```bash
-pip install -r requirements.txt
-```
-
-## 快速开始
-
-```bash
-python mtlogin.py \
-  --username "your_username" \
-  --password "your_password" \
-  --totpsecret "YOUR_TOTP_SECRET" \
-  --tgbot-token "123456:bot_token" \
-  --tgbot-chat-id "-1000000000000" \
-  --db-path "./mtlogin.db" \
-  --log-file "./mtlogin.log" \
-  --verbose-config
-```
 
 ## 命令行参数
 
