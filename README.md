@@ -4,6 +4,7 @@
 
 脚本会进行登录（或复用本地缓存 token），然后请求一组接口并尝试调用 `updateLastBrowse` 更新浏览状态；支持 Telegram/QQPush/Feishu/ntfy 通知。
 
+<img width="436" height="185" alt="image" src="https://github.com/user-attachments/assets/07be147f-fc0e-488c-92a2-ca5f8dfc634a" />
 
 ## 安装依赖示例：
 
