@@ -5,12 +5,12 @@
 脚本会进行登录（或复用本地缓存 token），然后请求一组接口并尝试调用 `updateLastBrowse` 更新浏览状态；支持 Telegram/QQPush/Feishu/ntfy 通知。
 
 
-##安装依赖示例：
+## 安装依赖示例：
 
 ```bash
 pip install -r requirements.txt
 ```
-##快速开始
+## 快速开始
 ```bash
 python mtlogin.py  --username "站点用户名"   --password "站点密码"   --totpsecret "TOTP密钥"   --tgbot-token "00000000000:AAAAAAAAAAAAAAAAAAAAAAA"  --tgbot-chat-id "-1000000000000"  --log-file /var/log/mtlogin.log   --db-path /root/mtlogin.db --verbose-config
 ```
