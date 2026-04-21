@@ -12,9 +12,37 @@
 ```bash
 pip install -r requirements.txt
 ```
+
+## Docker 使用
+
+构建镜像：
+
+```bash
+docker build -t mtlogin-py .
+```
+
+运行容器时，日志和 SQLite 数据库会默认写到容器内 `/app/mtlogin.log` 和 `/app/mtlogin.db`，不需要映射到宿主机。只需要传入账号、密码、TG、代理等环境变量：
+
+```bash
+docker run --rm \
+  -e USERNAME="站点用户名" \
+  -e PASSWORD="站点密码" \
+  -e TOTPSECRET="TOTP密钥" \
+  -e TGBOT_TOKEN="00000000000:AAAAAAAAAAAAAAAAAAAAAAA" \
+  -e TGBOT_CHAT_ID="-1000000000000" \
+  -e PROXY="http://127.0.0.1:3301" \
+  mtlogin-py
+```
+
+如果不需要 Telegram 或代理，去掉对应的 `-e` 参数即可。
+
 ## 快速开始
 ```bash
 python mtlogin.py  --username "站点用户名"   --password "站点密码"   --totpsecret "TOTP密钥"   --tgbot-token "00000000000:AAAAAAAAAAAAAAAAAAAAAAA"  --tgbot-chat-id "-1000000000000"  --log-file /var/log/mtlogin.log   --db-path /root/mtlogin.db
+```
+如果需要走代理：
+```bash
+python mtlogin.py --username "站点用户名" --password "站点密码" --totpsecret "TOTP密钥" --proxy "http://127.0.0.1:3301"
 ```
 如果想要打印请求详情：
 ```bash
@@ -46,14 +74,13 @@ python mtlogin.py [options]
 | `--totpsecret` | string | 空 | TOTP 密钥（2FA） |
 | `--m-team-auth` | string | 空 | 直接使用鉴权 token |
 | `--m-team-did` | string | 空 | 设备 DID |
-| `--proxy` | string | 空 | HTTP/HTTPS 代理地址 |
+| `--proxy` | string | 空 | HTTP/HTTPS 代理地址，例如 `http://127.0.0.1:3301` |
 | `--api-host` | string | `api.m-team.io` | API 域名 |
 | `--api-referer` | string | `https://kp.m-team.cc/` | Referer/Origin |
 | `--tgbot-token` | string | 空 | Telegram Bot Token |
 | `--tgbot-chat-id` | int | `0` | Telegram Chat ID |
 | `--db-path` | string | `/data/cookie.db` | SQLite 数据库路径 |
-| `--mindelay` | int | `0` | 随机延迟最小分钟 |
-| `--maxdelay` | int | `0` | 随机延迟最大分钟 |
+| `--skip-cache` | flag | `false` | 忽略本地 token/did 缓存并强制重新登录 |
 | `--use-local-config` | flag | `false` | 启用脚本内 `LOCAL_CONFIG_OVERRIDES` 覆盖 |
 | `--verbose-config` | flag | `false` | 启动时打印关键配置（脱敏） |
 | `--log-file` | string | 空 | 日志文件路径 |

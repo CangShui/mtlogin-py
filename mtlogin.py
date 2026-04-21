@@ -308,6 +308,12 @@ class JobServer:
         self.client = MTClient(cfg)
         self.failed = 0
 
+    def _proxies(self, override: str = "") -> Optional[Dict[str, str]]:
+        proxy = override or self.cfg.proxy
+        if not proxy:
+            return None
+        return {"http": proxy, "https": proxy}
+
     def run_once(self) -> None:
         log_info("Task execution started")
         try:
@@ -341,17 +347,21 @@ class JobServer:
             resp = std_requests.get(
                 f"https://qmsg.zendee.cn/send/{self.cfg.qqpush_token}",
                 params={"msg": message, "qq": self.cfg.qqpush},
+                proxies=self._proxies(),
                 timeout=10,
             )
             log_info(f"QQPush status={resp.status_code} body={resp.text}")
         if self.cfg.feishu_webhookurl:
-            resp = std_requests.post(self.cfg.feishu_webhookurl, json={"msg_type": "text", "content": {"text": message}}, timeout=10)
+            resp = std_requests.post(
+                self.cfg.feishu_webhookurl,
+                json={"msg_type": "text", "content": {"text": message}},
+                proxies=self._proxies(),
+                timeout=10,
+            )
             log_info(f"Feishu status={resp.status_code} body={resp.text}")
         if self.cfg.tgbot_token and self.cfg.tgbot_chat_id:
             tg_api = f"https://api.telegram.org/bot{self.cfg.tgbot_token}/sendMessage"
-            proxies = None
-            if self.cfg.tgbot_proxy:
-                proxies = {"http": self.cfg.tgbot_proxy, "https": self.cfg.tgbot_proxy}
+            proxies = self._proxies(self.cfg.tgbot_proxy)
             resp = std_requests.post(
                 tg_api,
                 data={"chat_id": str(self.cfg.tgbot_chat_id), "text": message},
@@ -366,7 +376,13 @@ class JobServer:
             elif self.cfg.ntfy_user and self.cfg.ntfy_password:
                 tok = base64.b64encode(f"{self.cfg.ntfy_user}:{self.cfg.ntfy_password}".encode()).decode()
                 headers["Authorization"] = f"Basic {tok}"
-            resp = std_requests.post(f"{self.cfg.ntfy_url.rstrip('/')}/{self.cfg.ntfy_topic}", data=message.encode(), headers=headers, timeout=10)
+            resp = std_requests.post(
+                f"{self.cfg.ntfy_url.rstrip('/')}/{self.cfg.ntfy_topic}",
+                data=message.encode(),
+                headers=headers,
+                proxies=self._proxies(),
+                timeout=10,
+            )
             log_info(f"Ntfy status={resp.status_code} body={resp.text}")
 
 
@@ -420,7 +436,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--totpsecret")
     parser.add_argument("--m-team-auth")
     parser.add_argument("--m-team-did")
-    parser.add_argument("--proxy")
+    parser.add_argument("--proxy", help="HTTP/HTTPS proxy URL, for example http://127.0.0.1:3301")
     parser.add_argument("--api-host")
     parser.add_argument("--api-referer")
     parser.add_argument("--tgbot-token")
