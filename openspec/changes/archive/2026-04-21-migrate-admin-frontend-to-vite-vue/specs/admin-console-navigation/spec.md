@@ -1,8 +1,5 @@
-# admin-console-navigation Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change modernize-admin-console-pages. Update Purpose after archive.
-## Requirements
 ### Requirement: Management console provides dedicated navigation to each admin page
 The system SHALL provide a shared admin console shell with navigation links to dedicated frontend routes for account management, platform configuration, notification management, execution history query, and system settings.
 
@@ -19,6 +16,8 @@ The system SHALL visually indicate the active navigation item for the current fr
 - **THEN** the matching navigation item is highlighted as active
 - **THEN** the navigation remains accessible without horizontal page breakage on narrow screens
 
+## ADDED Requirements
+
 ### Requirement: Management navigation supports route-driven page switching without full document reload
 The system SHALL allow administrators to switch between management sections through frontend routing so that page changes do not require a full document reload for normal in-app navigation.
 
@@ -26,4 +25,3 @@ The system SHALL allow administrators to switch between management sections thro
 - **WHEN** an authenticated administrator selects another management section from the console navigation
 - **THEN** the frontend updates to the target management route
 - **THEN** the target page is displayed within the same management application shell
-

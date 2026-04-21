@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 import requests as std_requests
 import mtlogin
 from croniter import croniter
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask import Flask, jsonify, request, send_from_directory, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from mtlogin import Config, JobServer, KVStore, TaskResult, clone_config, load_config, log_info
@@ -944,6 +944,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=int(os.getenv("PORT", "8000")))
     parser.add_argument("--db-path", default=os.getenv("DB_PATH", "./mtlogin.db"))
     parser.add_argument("--log-file", default=os.getenv("LOG_FILE", "./mtlogin.log"))
+    parser.add_argument(
+        "--frontend-dist",
+        default=os.getenv("FRONTEND_DIST", os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "dist")),
+    )
     parser.add_argument("--admin-username", default=os.getenv("ADMIN_USERNAME", "admin"))
     parser.add_argument("--admin-password", default=os.getenv("ADMIN_PASSWORD", "admin123456"))
     parser.add_argument("--secret-key", default=os.getenv("SECRET_KEY", secrets.token_hex(32)))
@@ -960,25 +964,52 @@ def create_app(args: argparse.Namespace) -> Flask:
     scheduler = BackgroundScheduler(store, base_config)
     scheduler.start()
 
-    app = Flask(__name__)
+    # Disable Flask's built-in /static route so /static/admin/* can be served from the frontend dist directory.
+    app = Flask(__name__, static_folder=None)
     app.secret_key = args.secret_key
     app.config["STORE"] = store
     app.config["SCHEDULER"] = scheduler
     app.config["BASE_CONFIG"] = base_config
     app.config["LOG_FILE_PATH"] = args.log_file
+    app.config["FRONTEND_DIST"] = args.frontend_dist
 
-    def login_required(view):
+    def api_response(data: Any = None, message: str = "ok", code: int = 0, status: int = 200):
+        return jsonify({"code": code, "data": {} if data is None else data, "message": message}), status
+
+    def request_payload() -> Dict[str, Any]:
+        if request.is_json:
+            payload = request.get_json(silent=True)
+            if isinstance(payload, dict):
+                return payload
+        return request.form.to_dict()
+
+    def request_id_list(name: str) -> List[int]:
+        payload = request_payload() if request.is_json else {}
+        raw_values: Any
+        if isinstance(payload.get(name), list):
+            raw_values = payload.get(name)
+        elif request.is_json:
+            raw_values = payload.get(name) or []
+        else:
+            raw_values = request.form.getlist(name)
+
+        if isinstance(raw_values, str):
+            raw_values = [item.strip() for item in raw_values.split(",") if item.strip()]
+        if not isinstance(raw_values, list):
+            return []
+        return [parse_int(value, name) for value in raw_values]
+
+    def is_authenticated() -> bool:
+        return bool(session.get("admin_username"))
+
+    def api_login_required(view):
         @wraps(view)
         def wrapped(*view_args, **view_kwargs):
-            if not session.get("admin_username"):
-                return redirect(url_for("login"))
+            if not is_authenticated():
+                return api_response({}, "未登录或登录已过期。", code=401, status=401)
             return view(*view_args, **view_kwargs)
 
         return wrapped
-
-    def page_redirect(endpoint: str, **kwargs: Any):
-        params = {key: value for key, value in kwargs.items() if value not in (None, "", [])}
-        return redirect(url_for(endpoint, **params))
 
     def build_history_filters() -> Dict[str, str]:
         return {
@@ -989,286 +1020,322 @@ def create_app(args: argparse.Namespace) -> Flask:
             "started_to": request.args.get("started_to", "").strip(),
         }
 
-    def build_admin_context(active_page: str, title: str, description: str, **extra: Any) -> Dict[str, Any]:
-        admin_settings = store.load_admin_settings()
+    def build_state_cards() -> List[Dict[str, str]]:
         state = scheduler.snapshot()
-        nav_items = []
-        for item in ADMIN_NAV_ITEMS:
-            nav_items.append({**item, "active": item["page"] == active_page})
+        return [
+            {"label": "调度状态", "value": state.get("scheduler_status") or "idle"},
+            {"label": "调度说明", "value": state.get("schedule_message") or "未设置"},
+            {"label": "下次执行", "value": state.get("next_run_at") or "未计划"},
+            {"label": "最近结果", "value": state.get("last_message") or "暂无执行记录"},
+        ]
 
-        context = {
-            "active_page": active_page,
-            "page_title": title,
-            "page_description": description,
-            "admin_username": admin_settings.get("username", "admin"),
-            "nav_items": nav_items,
-            "state": state,
-            "state_cards": [
-                {"label": "调度状态", "value": state.get("scheduler_status") or "idle"},
-                {"label": "调度说明", "value": state.get("schedule_message") or "未设置"},
-                {"label": "下次执行", "value": state.get("next_run_at") or "未计划"},
-                {"label": "最近结果", "value": state.get("last_message") or "暂无执行记录"},
-            ],
+    def build_runtime_info() -> Dict[str, Any]:
+        return {
+            "host": args.host,
+            "port": args.port,
+            "db_path": args.db_path,
+            "log_file": args.log_file,
+            "frontend_dist": args.frontend_dist,
         }
-        context.update(extra)
-        return context
 
-    def build_accounts_view_models() -> List[Dict[str, Any]]:
-        accounts = store.list_accounts_for_dashboard()
-        for account in accounts:
-            account["next_run_at"] = next_run_text(account.get("crontab"))
-        return accounts
+    def serialize_platform(platform: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "id": int(platform.get("id") or 0),
+            "code": str(platform.get("code") or ""),
+            "name": str(platform.get("name") or ""),
+            "api_host": str(platform.get("api_host") or ""),
+            "referer": str(platform.get("referer") or ""),
+            "enabled": bool(platform.get("enabled")),
+            "builtin": bool(platform.get("builtin")),
+            "created_at": str(platform.get("created_at") or ""),
+            "updated_at": str(platform.get("updated_at") or ""),
+        }
 
-    @app.route("/")
-    def index():
-        if session.get("admin_username"):
-            return redirect(url_for("accounts_page"))
-        return redirect(url_for("login"))
+    def serialize_notification_channel(channel: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "id": int(channel.get("id") or 0),
+            "name": str(channel.get("name") or ""),
+            "type": str(channel.get("type") or ""),
+            "enabled": bool(channel.get("enabled")),
+            "tgbot_chat_id": int(channel.get("tgbot_chat_id") or 0),
+            "tgbot_proxy": str(channel.get("tgbot_proxy") or ""),
+            "has_tgbot_token": bool(str(channel.get("tgbot_token") or "")),
+            "created_at": str(channel.get("created_at") or ""),
+            "updated_at": str(channel.get("updated_at") or ""),
+        }
 
-    @app.route("/login", methods=["GET", "POST"])
-    def login():
-        if request.method == "POST":
-            username = request.form.get("username", "").strip()
-            password = request.form.get("password", "")
-            if store.verify_admin(username, password):
-                session["admin_username"] = username
-                flash("登录成功。", "success")
-                return redirect(url_for("accounts_page"))
-            flash("用户名或密码错误。", "error")
-        return render_template("login.html")
+    def serialize_account(account: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "id": int(account.get("id") or 0),
+            "name": str(account.get("name") or ""),
+            "platform_id": int(account.get("platform_id") or 0),
+            "platform_name": str(account.get("platform_name") or ""),
+            "platform_code": str(account.get("platform_code") or ""),
+            "platform_enabled": bool(account.get("platform_enabled")),
+            "enabled": bool(account.get("enabled")),
+            "username": str(account.get("username") or ""),
+            "m_team_did": str(account.get("m_team_did") or ""),
+            "proxy": str(account.get("proxy") or ""),
+            "crontab": str(account.get("crontab") or ""),
+            "timeout": int(account.get("timeout") or 0),
+            "cookie_mode": str(account.get("cookie_mode") or "normal"),
+            "skip_cache": bool(account.get("skip_cache")),
+            "notification_names": str(account.get("notification_names") or ""),
+            "notification_channel_ids": store.get_account_notification_ids(int(account["id"])),
+            "last_status": str(account.get("last_status") or ""),
+            "last_started_at": str(account.get("last_started_at") or ""),
+            "last_finished_at": str(account.get("last_finished_at") or ""),
+            "last_message": str(account.get("last_message") or ""),
+            "last_uploaded": str(account.get("last_uploaded") or ""),
+            "last_downloaded": str(account.get("last_downloaded") or ""),
+            "last_bonus": str(account.get("last_bonus") or ""),
+            "last_login": str(account.get("last_login") or ""),
+            "next_run_at": next_run_text(account.get("crontab")),
+            "has_password": bool(str(account.get("password") or "")),
+            "has_totpsecret": bool(str(account.get("totpsecret") or "")),
+            "has_m_team_auth": bool(str(account.get("m_team_auth") or "")),
+            "created_at": str(account.get("created_at") or ""),
+            "updated_at": str(account.get("updated_at") or ""),
+        }
 
-    @app.get("/logout")
-    @login_required
-    def logout():
+    def serialize_execution_record(record: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "id": int(record.get("id") or 0),
+            "account_id": int(record.get("account_id") or 0),
+            "account_name": str(record.get("account_name") or ""),
+            "account_username": str(record.get("account_username") or ""),
+            "platform_id": int(record.get("platform_id") or 0),
+            "platform_name": str(record.get("platform_name") or ""),
+            "platform_code": str(record.get("platform_code") or ""),
+            "trigger_mode": str(record.get("trigger_mode") or ""),
+            "status": str(record.get("status") or ""),
+            "result_message": str(record.get("result_message") or ""),
+            "started_at": str(record.get("started_at") or ""),
+            "finished_at": str(record.get("finished_at") or ""),
+            "run_username": str(record.get("run_username") or ""),
+            "uploaded": str(record.get("uploaded") or ""),
+            "downloaded": str(record.get("downloaded") or ""),
+            "bonus": str(record.get("bonus") or ""),
+            "last_login": str(record.get("last_login") or ""),
+            "last_browse": str(record.get("last_browse") or ""),
+            "created_at": str(record.get("created_at") or ""),
+        }
+
+    def serve_spa() -> Any:
+        index_path = os.path.join(args.frontend_dist, "index.html")
+        if not os.path.exists(index_path):
+            return (
+                "Frontend build is missing. Run `cd frontend && npm install && npm run build` before serving the SPA.\n",
+                503,
+                {"Content-Type": "text/plain; charset=utf-8"},
+            )
+        return send_from_directory(args.frontend_dist, "index.html")
+
+    @app.post("/api/admin/session/login")
+    def api_login():
+        payload = request_payload()
+        username = str(payload.get("username") or "").strip()
+        password = str(payload.get("password") or "")
+        if not store.verify_admin(username, password):
+            return api_response({}, "用户名或密码错误。", code=401, status=401)
+        session["admin_username"] = username
+        return api_response({"username": username, "roles": ["admin"]}, "登录成功。")
+
+    @app.post("/api/admin/session/logout")
+    def api_logout():
         session.clear()
-        flash("已退出登录。", "success")
-        return redirect(url_for("login"))
+        return api_response({}, "已退出登录。")
 
-    @app.get("/dashboard")
-    @login_required
-    def dashboard():
-        return redirect(url_for("accounts_page"))
+    @app.get("/api/admin/session/me")
+    @api_login_required
+    def api_current_user():
+        username = str(session.get("admin_username") or store.load_admin_settings().get("username") or "admin")
+        return api_response({"username": username, "roles": ["admin"]})
 
-    @app.get("/accounts")
-    @login_required
-    def accounts_page():
-        edit_account_id = request.args.get("edit_account", "").strip()
-        edit_account = store.get_account(safe_int(edit_account_id)) if edit_account_id else {}
-        selected_channel_ids = store.get_account_notification_ids(int(edit_account["id"])) if edit_account else []
-        enabled_platforms = store.list_platforms(enabled_only=True)
-        accounts = build_accounts_view_models()
-        return render_template(
-            "accounts.html",
-            **build_admin_context(
-                "accounts",
-                "账户管理",
-                "集中维护登录账户、调度计划、通知绑定和最近执行摘要。",
-                accounts=accounts,
-                channels=store.list_notification_channels(),
-                enabled_platforms=enabled_platforms,
-                edit_account=edit_account,
-                account_secret_status={
-                    "password": bool(edit_account.get("password")),
-                    "totpsecret": bool(edit_account.get("totpsecret")),
-                    "m_team_auth": bool(edit_account.get("m_team_auth")),
+    @app.get("/api/admin/bootstrap")
+    @api_login_required
+    def api_bootstrap():
+        return api_response(
+            {
+                "currentUser": {
+                    "username": str(session.get("admin_username") or store.load_admin_settings().get("username") or "admin"),
+                    "roles": ["admin"],
                 },
-                selected_channel_ids=selected_channel_ids,
-                default_platform_id=(enabled_platforms[0]["id"] if enabled_platforms else 0),
-                default_timeout=base_config.timeout,
-                default_cookie_mode=base_config.cookie_mode,
-            ),
+                "runtimeState": scheduler.snapshot(),
+                "stateCards": build_state_cards(),
+                "navigation": [{"page": item["page"], "label": item["label"]} for item in ADMIN_NAV_ITEMS],
+            }
         )
 
-    @app.get("/platforms")
-    @login_required
-    def platforms_page():
-        return render_template(
-            "platforms.html",
-            **build_admin_context(
-                "platforms",
-                "平台配置",
-                "查看当前可用平台及其固定 API 配置，控制平台启用状态。",
-                platforms=store.list_platforms(),
-            ),
-        )
+    @app.get("/api/admin/platforms")
+    @api_login_required
+    def api_list_platforms():
+        return api_response({"items": [serialize_platform(item) for item in store.list_platforms()]})
 
-    @app.get("/notifications")
-    @login_required
-    def notifications_page():
-        edit_channel_id = request.args.get("edit_channel", "").strip()
-        edit_channel = store.get_notification_channel(safe_int(edit_channel_id)) if edit_channel_id else {}
-        return render_template(
-            "notifications.html",
-            **build_admin_context(
-                "notifications",
-                "通知管理",
-                "维护 Telegram 通知渠道，并将其绑定到不同登录账户。",
-                channels=store.list_notification_channels(),
-                edit_channel=edit_channel,
-                channel_secret_status={"tgbot_token": bool(edit_channel.get("tgbot_token"))},
-            ),
-        )
-
-    @app.get("/history")
-    @login_required
-    def history_page():
-        history_filters = build_history_filters()
+    @app.post("/api/admin/platforms/<int:platform_id>/toggle")
+    @api_login_required
+    def api_toggle_platform(platform_id: int):
+        payload = request_payload()
         try:
-            history_records = store.list_execution_records(history_filters)
-        except ValueError as exc:
-            flash(str(exc), "error")
-            history_records = store.list_execution_records({})
-        return render_template(
-            "history.html",
-            **build_admin_context(
-                "history",
-                "执行记录",
-                "按账户、平台、状态和时间范围筛选执行结果与关键指标。",
-                accounts=build_accounts_view_models(),
-                platforms=store.list_platforms(),
-                history_records=history_records,
-                history_filters=history_filters,
-            ),
-        )
-
-    @app.get("/settings")
-    @login_required
-    def settings_page():
-        return render_template(
-            "settings.html",
-            **build_admin_context(
-                "settings",
-                "系统设置",
-                "维护管理员账号，并查看当前服务运行环境与最近日志。",
-                log_tail=tail_log(args.log_file),
-                runtime_info={
-                    "host": args.host,
-                    "port": args.port,
-                    "db_path": args.db_path,
-                    "log_file": args.log_file,
-                },
-            ),
-        )
-
-    @app.post("/platforms/<int:platform_id>/toggle")
-    @login_required
-    def toggle_platform(platform_id: int):
-        try:
-            enabled = request.form.get("enabled") == "1"
-            store.set_platform_enabled(platform_id, enabled)
+            store.set_platform_enabled(platform_id, truthy(payload.get("enabled")))
             scheduler.reload()
-            flash("平台状态已更新。", "success")
         except ValueError as exc:
-            flash(str(exc), "error")
-        return redirect(url_for("platforms_page"))
+            return api_response({}, str(exc), code=1, status=400)
+        return api_response(serialize_platform(store.get_platform(platform_id)), "平台状态已更新。")
 
-    @app.post("/notifications/save")
-    @login_required
-    def save_notification():
-        channel_id_text = request.form.get("channel_id", "").strip()
+    @app.get("/api/admin/notifications")
+    @api_login_required
+    def api_list_notifications():
+        return api_response({"items": [serialize_notification_channel(item) for item in store.list_notification_channels()]})
+
+    @app.post("/api/admin/notifications")
+    @api_login_required
+    def api_save_notification():
+        payload = request_payload()
+        channel_id_text = str(payload.get("channel_id") or payload.get("id") or "").strip()
         channel_id = parse_int(channel_id_text, "通知渠道", 0) if channel_id_text else None
-        payload = {
-            "name": request.form.get("name", "").strip(),
-            "type": request.form.get("type", CHANNEL_TYPE_TG).strip(),
-            "enabled": request.form.get("enabled") == "on",
-            "tgbot_token": request.form.get("tgbot_token", ""),
-            "tgbot_chat_id": request.form.get("tgbot_chat_id", "").strip(),
-            "tgbot_proxy": request.form.get("tgbot_proxy", "").strip(),
-        }
         try:
             saved_id = store.save_notification_channel(payload, channel_id)
-            flash("通知渠道已保存。", "success")
             scheduler.reload()
-            return page_redirect("notifications_page", edit_channel=saved_id)
         except ValueError as exc:
-            flash(str(exc), "error")
-            return page_redirect("notifications_page", edit_channel=channel_id_text)
+            return api_response({}, str(exc), code=1, status=400)
+        return api_response(serialize_notification_channel(store.get_notification_channel(saved_id)), "通知渠道已保存。")
 
-    @app.post("/notifications/<int:channel_id>/toggle")
-    @login_required
-    def toggle_notification(channel_id: int):
+    @app.post("/api/admin/notifications/<int:channel_id>/toggle")
+    @api_login_required
+    def api_toggle_notification(channel_id: int):
+        payload = request_payload()
         try:
-            enabled = request.form.get("enabled") == "1"
-            store.set_notification_channel_enabled(channel_id, enabled)
+            store.set_notification_channel_enabled(channel_id, truthy(payload.get("enabled")))
             scheduler.reload()
-            flash("通知渠道状态已更新。", "success")
         except ValueError as exc:
-            flash(str(exc), "error")
-        return redirect(url_for("notifications_page"))
+            return api_response({}, str(exc), code=1, status=400)
+        return api_response(serialize_notification_channel(store.get_notification_channel(channel_id)), "通知渠道状态已更新。")
 
-    @app.post("/accounts/save")
-    @login_required
-    def save_account():
-        account_id_text = request.form.get("account_id", "").strip()
+    @app.get("/api/admin/accounts")
+    @api_login_required
+    def api_list_accounts():
+        enabled_platforms = store.list_platforms(enabled_only=True)
+        return api_response(
+            {
+                "items": [serialize_account(item) for item in store.list_accounts_for_dashboard()],
+                "channels": [serialize_notification_channel(item) for item in store.list_notification_channels()],
+                "platforms": [serialize_platform(item) for item in enabled_platforms],
+                "defaults": {
+                    "platform_id": int(enabled_platforms[0]["id"]) if enabled_platforms else 0,
+                    "timeout": int(base_config.timeout or 60),
+                    "cookie_mode": str(base_config.cookie_mode or "normal"),
+                },
+            }
+        )
+
+    @app.post("/api/admin/accounts")
+    @api_login_required
+    def api_save_account():
+        payload = request_payload()
+        account_id_text = str(payload.get("account_id") or payload.get("id") or "").strip()
         account_id = parse_int(account_id_text, "登录账户", 0) if account_id_text else None
-        payload = {
-            "name": request.form.get("name", "").strip(),
-            "platform_id": request.form.get("platform_id", "").strip(),
-            "enabled": request.form.get("enabled") == "on",
-            "username": request.form.get("username", "").strip(),
-            "password": request.form.get("password", ""),
-            "totpsecret": request.form.get("totpsecret", ""),
-            "proxy": request.form.get("proxy", "").strip(),
-            "crontab": request.form.get("crontab", "").strip(),
-            "m_team_auth": request.form.get("m_team_auth", ""),
-            "m_team_did": request.form.get("m_team_did", "").strip(),
-            "timeout": request.form.get("timeout", "").strip(),
-            "cookie_mode": request.form.get("cookie_mode", "").strip(),
-            "skip_cache": request.form.get("skip_cache") == "on",
-        }
-        selected_channel_ids = request.form.getlist("notification_channel_ids")
         try:
-            saved_id = store.save_account(payload, [parse_int(value, "通知渠道") for value in selected_channel_ids], account_id)
+            saved_id = store.save_account(payload, request_id_list("notification_channel_ids"), account_id)
             scheduler.reload()
-            flash("登录账户已保存。", "success")
-            return page_redirect("accounts_page", edit_account=saved_id)
         except ValueError as exc:
-            flash(str(exc), "error")
-            return page_redirect("accounts_page", edit_account=account_id_text)
+            return api_response({}, str(exc), code=1, status=400)
+        return api_response(serialize_account(store.get_account(saved_id)), "登录账户已保存。")
 
-    @app.post("/accounts/<int:account_id>/toggle")
-    @login_required
-    def toggle_account(account_id: int):
+    @app.post("/api/admin/accounts/<int:account_id>/toggle")
+    @api_login_required
+    def api_toggle_account(account_id: int):
+        payload = request_payload()
         try:
-            enabled = request.form.get("enabled") == "1"
-            store.set_account_enabled(account_id, enabled)
+            store.set_account_enabled(account_id, truthy(payload.get("enabled")))
             scheduler.reload()
-            flash("登录账户状态已更新。", "success")
         except ValueError as exc:
-            flash(str(exc), "error")
-        return redirect(url_for("accounts_page"))
+            return api_response({}, str(exc), code=1, status=400)
+        return api_response(serialize_account(store.get_account(account_id)), "登录账户状态已更新。")
 
-    @app.post("/accounts/<int:account_id>/run")
-    @login_required
-    def run_account(account_id: int):
+    @app.post("/api/admin/accounts/<int:account_id>/run")
+    @api_login_required
+    def api_run_account(account_id: int):
         account = store.get_account_with_platform(account_id, enabled_only=True)
         if not account:
-            flash("只能执行已启用且平台可用的账户。", "error")
-            return redirect(url_for("accounts_page"))
+            return api_response({}, "只能执行已启用且平台可用的账户。", code=1, status=400)
         scheduler.trigger_account(account_id)
-        flash(f"已提交账户 {account['name']} 的立即执行请求。", "success")
-        return redirect(url_for("accounts_page"))
+        return api_response(serialize_account(account), f"已提交账户 {account['name']} 的立即执行请求。")
 
-    @app.post("/admin")
-    @login_required
-    def update_admin():
-        current_username = store.load_admin_settings().get("username", "admin")
-        new_username = request.form.get("admin_username", "").strip() or current_username
-        current_password = request.form.get("current_password", "")
-        new_password = request.form.get("new_password", "")
-        confirm_password = request.form.get("confirm_password", "")
+    @app.get("/api/admin/history")
+    @api_login_required
+    def api_list_history():
+        filters = build_history_filters()
+        try:
+            records = store.list_execution_records(filters)
+        except ValueError as exc:
+            return api_response({}, str(exc), code=1, status=400)
+        return api_response(
+            {
+                "items": [serialize_execution_record(item) for item in records],
+                "accounts": [
+                    {"id": int(item["id"]), "name": str(item["name"])}
+                    for item in store.list_accounts_for_dashboard()
+                ],
+                "platforms": [
+                    {"id": int(item["id"]), "name": str(item["name"]), "code": str(item["code"])}
+                    for item in store.list_platforms()
+                ],
+                "filters": filters,
+            }
+        )
+
+    @app.get("/api/admin/settings")
+    @api_login_required
+    def api_settings():
+        admin_settings = store.load_admin_settings()
+        return api_response(
+            {
+                "adminUsername": str(admin_settings.get("username") or "admin"),
+                "runtimeInfo": build_runtime_info(),
+                "logTail": tail_log(args.log_file),
+            }
+        )
+
+    @app.post("/api/admin/settings/admin")
+    @api_login_required
+    def api_update_admin():
+        payload = request_payload()
+        current_username = str(store.load_admin_settings().get("username") or "admin")
+        new_username = str(payload.get("admin_username") or "").strip() or current_username
+        current_password = str(payload.get("current_password") or "")
+        new_password = str(payload.get("new_password") or "")
+        confirm_password = str(payload.get("confirm_password") or "")
 
         if not store.verify_admin(current_username, current_password):
-            flash("当前密码不正确。", "error")
-            return redirect(url_for("settings_page"))
+            return api_response({}, "当前密码不正确。", code=1, status=400)
         if new_password and new_password != confirm_password:
-            flash("两次输入的新密码不一致。", "error")
-            return redirect(url_for("settings_page"))
+            return api_response({}, "两次输入的新密码不一致。", code=1, status=400)
 
         store.update_admin(new_username, new_password)
         session["admin_username"] = new_username
-        flash("管理员账号已更新。", "success")
-        return redirect(url_for("settings_page"))
+        return api_response({"username": new_username}, "管理员账号已更新。")
+
+    @app.get("/static/admin/<path:filename>")
+    def frontend_assets(filename: str):
+        asset_path = os.path.join(args.frontend_dist, filename)
+        if not os.path.exists(asset_path):
+            return api_response({}, "资源不存在。", code=404, status=404)
+        return send_from_directory(args.frontend_dist, filename)
+
+    @app.get("/")
+    def frontend_root():
+        return serve_spa()
+
+    @app.get("/login")
+    @app.get("/dashboard")
+    @app.get("/accounts")
+    @app.get("/platforms")
+    @app.get("/notifications")
+    @app.get("/history")
+    @app.get("/settings")
+    def frontend_pages():
+        return serve_spa()
 
     return app
 

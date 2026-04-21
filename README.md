@@ -1,6 +1,6 @@
 # MTLogin 管理后台
 
-这个项目现在是一个带登录后台的 M-Team 管理服务。管理员登录后，会进入一个多页面管理控制台，可以分别管理平台配置、通知渠道、多个登录账户、执行记录和系统设置；后台会按账户级 cron 计划执行登录/刷新操作，也支持按账户手动立即执行。
+这个项目现在是一个带登录后台的 M-Team 管理服务。管理员登录后，会进入一个基于 `Vue 3 + Vite 7.3.1` 的管理控制台，可以分别管理平台配置、通知渠道、多个登录账户、执行记录和系统设置；后台会按账户级 cron 计划执行登录/刷新操作，也支持按账户手动立即执行。
 
 ## 安装依赖
 
@@ -10,17 +10,37 @@ pip install -r requirements.txt
 
 ## 本地启动
 
+### 只启动 Flask（生产式集成）
+
+先构建前端，再让 Flask 分发 `frontend/dist`：
+
+```bash
+cd frontend
+pnpm install
+pnpm build
+cd ..
+python app.py
+```
+
+### 前后端分离开发
+
 ```bash
 python app.py
+
+cd frontend
+pnpm install
+pnpm dev
 ```
 
 默认行为：
 
 - 管理后台地址：`http://127.0.0.1:8000`
+- Vite 开发地址：`http://127.0.0.1:3333`
 - 默认管理员账号：`admin`
 - 默认管理员密码：`admin123456`
 - 本地数据库：`./mtlogin.db`
 - 本地日志：`./mtlogin.log`
+- 前端构建目录：`./frontend/dist`
 
 首次登录后建议立即在后台修改管理员密码。
 
@@ -32,6 +52,7 @@ python app.py \
   --port 8000 \
   --db-path ./mtlogin.db \
   --log-file ./mtlogin.log \
+  --frontend-dist ./frontend/dist \
   --admin-username admin \
   --admin-password admin123456
 ```
@@ -64,7 +85,7 @@ docker run --rm -p 8000:8000 \
 ## 后台功能
 
 - 管理员账号密码登录
-- 现代化多页面管理控制台
+- 现代化 Vue 单页管理控制台
 - 平台配置独立页面
 - 通知管理独立页面
 - 多个登录账户独立管理页面
@@ -85,7 +106,7 @@ docker run --rm -p 8000:8000 \
 - `执行记录`：按条件筛选历史执行结果
 - `系统设置`：修改管理员账号密码，并查看当前运行环境和最近日志
 
-旧入口 `/dashboard` 仍然保留，但现在会重定向到 `账户管理` 页面。
+兼容入口 `/dashboard` 仍然保留，并在前端路由中跳转到 `账户管理` 页面。
 
 ## 后台配置说明
 
@@ -109,7 +130,7 @@ docker run --rm -p 8000:8000 \
   - 按最近执行时间倒序展示
 - `系统设置`
   - 独立管理管理员账号密码
-  - 查看当前服务监听地址、数据库路径、日志路径和最近日志
+  - 查看当前服务监听地址、数据库路径、日志路径、前端构建目录和最近日志
 
 说明：
 
@@ -117,6 +138,7 @@ docker run --rm -p 8000:8000 \
 - 配置保存后，后台调度线程会自动重新加载计划。
 - “立即执行”现在是账户级操作，会将结果写入执行记录。
 - 升级到新版本后，如果数据库里存在旧的单任务配置，系统会自动迁移出默认账户和默认 TG 通知渠道。
+- 管理前端通过 `/api/admin/**` 调用 Flask JSON API，认证仍然以 Flask Session 为准。
 
 ## 常见 Cron 示例
 
@@ -141,6 +163,7 @@ docker run --rm -p 8000:8000 \
 | `PORT` | `8000` | Web 服务端口 |
 | `DB_PATH` | `./mtlogin.db` | SQLite 数据库路径 |
 | `LOG_FILE` | `./mtlogin.log` | 日志文件路径 |
+| `FRONTEND_DIST` | `./frontend/dist` | Flask 分发的前端构建目录 |
 | `ADMIN_USERNAME` | `admin` | 初始管理员用户名 |
 | `ADMIN_PASSWORD` | `admin123456` | 初始管理员密码，仅首次初始化时使用 |
 | `SECRET_KEY` | 随机生成 | Flask Session 密钥 |
