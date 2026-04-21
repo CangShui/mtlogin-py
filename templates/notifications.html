@@ -1,0 +1,106 @@
+{% extends "admin_base.html" %}
+
+{% block content %}
+  <section class="split-grid">
+    <div class="page-section">
+      <div class="section-head">
+        <div>
+          <h3>通知渠道列表</h3>
+          <p class="table-note">首期仅支持 Telegram 渠道，可独立启停并绑定到账户。</p>
+        </div>
+        <span class="pill">共 {{ channels|length }} 个渠道</span>
+      </div>
+
+      {% if channels %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>类型</th>
+                <th>目标</th>
+                <th>代理</th>
+                <th>状态</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for channel in channels %}
+                <tr>
+                  <td data-label="名称">
+                    <strong>{{ channel.name }}</strong><br>
+                    <span class="subtle">ID {{ channel.id }}</span>
+                  </td>
+                  <td data-label="类型">{{ channel.type }}</td>
+                  <td data-label="目标">{{ channel.tgbot_chat_id or '-' }}</td>
+                  <td data-label="代理">{{ channel.tgbot_proxy or '-' }}</td>
+                  <td data-label="状态">
+                    <span class="badge {{ 'ok' if channel.enabled else 'error' }}">{{ '启用' if channel.enabled else '停用' }}</span>
+                  </td>
+                  <td data-label="操作">
+                    <div class="mini-actions">
+                      <a class="link-button ghost" href="{{ url_for('notifications_page', edit_channel=channel.id) }}">编辑</a>
+                      <form method="post" action="{{ url_for('toggle_notification', channel_id=channel.id) }}">
+                        <input type="hidden" name="enabled" value="{{ 0 if channel.enabled else 1 }}">
+                        <button type="submit" class="ghost">{{ '停用' if channel.enabled else '启用' }}</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty">暂无通知渠道。</div>
+      {% endif %}
+    </div>
+
+    <div class="page-section">
+      <div class="section-head">
+        <div>
+          <h3>{{ '编辑通知渠道' if edit_channel else '新增通知渠道' }}</h3>
+          <p class="table-note">Bot Token 留空时不会覆盖已保存值。</p>
+        </div>
+      </div>
+
+      <form method="post" action="{{ url_for('save_notification') }}">
+        <input type="hidden" name="channel_id" value="{{ edit_channel.id if edit_channel else '' }}">
+        <div class="form-grid">
+          <label>
+            渠道名称
+            <input type="text" name="name" value="{{ edit_channel.name if edit_channel else '' }}" placeholder="例如：默认 TG">
+          </label>
+          <label>
+            渠道类型
+            <select name="type">
+              <option value="tg" selected>tg</option>
+            </select>
+          </label>
+          <label>
+            Telegram Bot Token
+            <input type="password" name="tgbot_token" placeholder="{{ '已保存，留空不变' if channel_secret_status.tgbot_token else '请输入 Bot Token' }}">
+          </label>
+          <label>
+            Telegram Chat ID
+            <input type="number" name="tgbot_chat_id" value="{{ edit_channel.tgbot_chat_id if edit_channel else '' }}">
+          </label>
+          <label class="wide">
+            Telegram 代理
+            <input type="text" name="tgbot_proxy" value="{{ edit_channel.tgbot_proxy if edit_channel else '' }}" placeholder="http://127.0.0.1:7890">
+          </label>
+          <label class="toggle-line">
+            <input type="checkbox" name="enabled" {% if not edit_channel or edit_channel.enabled %}checked{% endif %}>
+            启用该通知渠道
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit">保存通知渠道</button>
+          {% if edit_channel %}
+            <a class="link-button ghost" href="{{ url_for('notifications_page') }}">取消编辑</a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </section>
+{% endblock %}

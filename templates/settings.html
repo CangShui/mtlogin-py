@@ -1,0 +1,66 @@
+{% extends "admin_base.html" %}
+
+{% block content %}
+  <section class="split-grid">
+    <div class="page-section">
+      <div class="section-head">
+        <div>
+          <h3>管理员账号</h3>
+          <p class="table-note">修改管理员用户名或密码，成功后当前会话会自动同步到新账号。</p>
+        </div>
+      </div>
+      <form method="post" action="{{ url_for('update_admin') }}">
+        <div class="form-grid">
+          <label>
+            新管理员账号
+            <input type="text" name="admin_username" value="{{ admin_username }}">
+          </label>
+          <label>
+            当前密码
+            <input type="password" name="current_password" required>
+          </label>
+          <label>
+            新密码
+            <input type="password" name="new_password" placeholder="留空表示不修改密码">
+          </label>
+          <label>
+            确认新密码
+            <input type="password" name="confirm_password" placeholder="留空表示不修改密码">
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit" class="secondary">更新管理员账号</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="page-section">
+      <div class="section-head">
+        <div>
+          <h3>运行环境</h3>
+          <p class="table-note">当前 Web 后台的基础启动参数。</p>
+        </div>
+      </div>
+      <dl class="key-value">
+        <dt>监听地址</dt>
+        <dd class="mono">{{ runtime_info.host }}</dd>
+        <dt>监听端口</dt>
+        <dd class="mono">{{ runtime_info.port }}</dd>
+        <dt>数据库路径</dt>
+        <dd class="mono">{{ runtime_info.db_path }}</dd>
+        <dt>日志文件</dt>
+        <dd class="mono">{{ runtime_info.log_file }}</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="page-section" style="margin-top: 18px;">
+    <div class="section-head">
+      <div>
+        <h3>最近日志</h3>
+        <p class="table-note">保留最近的日志尾部，便于快速排查运行情况。</p>
+      </div>
+    </div>
+    <textarea class="log-view" readonly>{{ log_tail }}</textarea>
+  </section>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "admin_base.html" %}
+
+{% block content %}
+  <section class="page-section">
+    <div class="section-head">
+      <div>
+        <h3>平台配置列表</h3>
+        <p class="table-note">当前仅内置 `mt` 平台，API Host 与 API Referer 为固定只读值。</p>
+      </div>
+      <span class="pill">共 {{ platforms|length }} 个平台</span>
+    </div>
+
+    {% if platforms %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>平台</th>
+              <th>API Host</th>
+              <th>API Referer</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for platform in platforms %}
+              <tr>
+                <td data-label="平台">
+                  <strong>{{ platform.name }}</strong><br>
+                  <span class="subtle">{{ platform.code }}</span>
+                  {% if platform.builtin %}<span class="badge">内置</span>{% endif %}
+                </td>
+                <td data-label="API Host" class="mono">{{ platform.api_host }}</td>
+                <td data-label="API Referer" class="mono">{{ platform.referer }}</td>
+                <td data-label="状态">
+                  <span class="badge {{ 'ok' if platform.enabled else 'error' }}">{{ '启用' if platform.enabled else '停用' }}</span>
+                </td>
+                <td data-label="操作">
+                  <div class="mini-actions">
+                    <form method="post" action="{{ url_for('toggle_platform', platform_id=platform.id) }}">
+                      <input type="hidden" name="enabled" value="{{ 0 if platform.enabled else 1 }}">
+                      <button type="submit" class="ghost">{{ '停用' if platform.enabled else '启用' }}</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">暂无平台配置。</div>
+    {% endif %}
+  </section>
+{% endblock %}

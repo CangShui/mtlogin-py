@@ -1,0 +1,111 @@
+{% extends "admin_base.html" %}
+
+{% block content %}
+  <section class="page-section">
+    <div class="section-head">
+      <div>
+        <h3>筛选条件</h3>
+        <p class="table-note">支持按账户、平台、状态和时间范围查询历史执行结果。</p>
+      </div>
+    </div>
+    <form method="get" action="{{ url_for('history_page') }}">
+      <div class="form-grid">
+        <label>
+          账户
+          <select name="account_id">
+            <option value="">全部账户</option>
+            {% for account in accounts %}
+              <option value="{{ account.id }}" {% if history_filters.account_id == (account.id|string) %}selected{% endif %}>{{ account.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          平台
+          <select name="platform_id">
+            <option value="">全部平台</option>
+            {% for platform in platforms %}
+              <option value="{{ platform.id }}" {% if history_filters.platform_id == (platform.id|string) %}selected{% endif %}>{{ platform.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          状态
+          <select name="status">
+            <option value="">全部状态</option>
+            <option value="success" {% if history_filters.status == 'success' %}selected{% endif %}>success</option>
+            <option value="error" {% if history_filters.status == 'error' %}selected{% endif %}>error</option>
+          </select>
+        </label>
+        <label>
+          开始时间
+          <input type="datetime-local" name="started_from" value="{{ history_filters.started_from }}">
+        </label>
+        <label>
+          结束时间
+          <input type="datetime-local" name="started_to" value="{{ history_filters.started_to }}">
+        </label>
+      </div>
+      <div class="actions">
+        <button type="submit">查询执行记录</button>
+        <a class="link-button ghost" href="{{ url_for('history_page') }}">清空筛选</a>
+      </div>
+    </form>
+  </section>
+
+  <section class="page-section" style="margin-top: 18px;">
+    <div class="section-head">
+      <div>
+        <h3>执行记录列表</h3>
+        <p class="table-note">按最近开始时间倒序展示执行结果与关键指标。</p>
+      </div>
+      <span class="pill">共 {{ history_records|length }} 条记录</span>
+    </div>
+
+    {% if history_records %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>开始时间</th>
+              <th>账户 / 平台</th>
+              <th>触发方式</th>
+              <th>状态</th>
+              <th>结果</th>
+              <th>指标</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for record in history_records %}
+              <tr>
+                <td data-label="开始时间">
+                  {{ record.started_at }}<br>
+                  <span class="subtle">结束 {{ record.finished_at }}</span>
+                </td>
+                <td data-label="账户 / 平台">
+                  <strong>{{ record.account_name }}</strong><br>
+                  <span class="subtle">{{ record.platform_code }}</span>
+                </td>
+                <td data-label="触发方式">{{ record.trigger_mode }}</td>
+                <td data-label="状态">
+                  <span class="badge {{ 'ok' if record.status == 'success' else 'error' }}">{{ record.status }}</span>
+                </td>
+                <td data-label="结果">
+                  {{ record.result_message }}<br>
+                  <span class="subtle">{{ record.run_username or '无站点用户名返回' }}</span>
+                </td>
+                <td data-label="指标">
+                  <span class="subtle">上传 {{ record.uploaded or '-' }}</span><br>
+                  <span class="subtle">下载 {{ record.downloaded or '-' }}</span><br>
+                  <span class="subtle">魔力 {{ record.bonus or '-' }}</span><br>
+                  <span class="subtle">最后登录 {{ record.last_login or '-' }}</span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">没有匹配的执行记录。</div>
+    {% endif %}
+  </section>
+{% endblock %}
