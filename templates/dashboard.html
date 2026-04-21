@@ -15,6 +15,7 @@
       --accent-strong: #6d3d1f;
       --danger: #a33b3b;
       --ok: #2f6b48;
+      --ink-soft: rgba(34, 29, 23, 0.7);
     }
     * { box-sizing: border-box; }
     body {
@@ -26,7 +27,7 @@
       font-family: "Helvetica Neue", "PingFang SC", sans-serif;
     }
     .shell {
-      width: min(1180px, calc(100vw - 32px));
+      width: min(1320px, calc(100vw - 32px));
       margin: 24px auto 40px;
     }
     .topbar {
@@ -45,8 +46,9 @@
     }
     .grid {
       display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
+      grid-template-columns: 1.2fr 0.8fr;
       gap: 18px;
+      align-items: start;
     }
     .card {
       padding: 20px;
@@ -55,10 +57,17 @@
       background: var(--card);
       box-shadow: 0 16px 48px rgba(45, 26, 8, 0.07);
     }
-    .card + .card { margin-top: 18px; }
+    .stack {
+      display: grid;
+      gap: 18px;
+    }
     h2 {
       margin: 0 0 14px;
       font-size: 20px;
+    }
+    h3 {
+      margin: 18px 0 10px;
+      font-size: 16px;
     }
     .flash {
       margin-bottom: 14px;
@@ -68,6 +77,25 @@
     }
     .flash.error { background: rgba(163, 59, 59, 0.12); color: var(--danger); }
     .flash.success { background: rgba(47, 107, 72, 0.12); color: var(--ok); }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(143, 83, 44, 0.1);
+      font-size: 13px;
+      color: var(--accent-strong);
+      margin-bottom: 14px;
+    }
+    .status-pill.error {
+      background: rgba(163, 59, 59, 0.12);
+      color: var(--danger);
+    }
+    .status-pill.success {
+      background: rgba(47, 107, 72, 0.12);
+      color: var(--ok);
+    }
     .stats {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -94,12 +122,12 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
     }
+    .wide { grid-column: 1 / -1; }
     label {
       display: block;
       margin-bottom: 12px;
       font-size: 14px;
     }
-    .wide { grid-column: 1 / -1; }
     input, select, textarea {
       width: 100%;
       margin-top: 6px;
@@ -110,8 +138,12 @@
       font: inherit;
       color: inherit;
     }
+    input[readonly] {
+      background: #f7f2ea;
+      color: var(--ink-soft);
+    }
     textarea {
-      min-height: 320px;
+      min-height: 300px;
       resize: vertical;
       font-family: "SFMono-Regular", "Menlo", monospace;
       font-size: 12px;
@@ -127,7 +159,7 @@
       gap: 10px;
       margin-top: 8px;
     }
-    button {
+    button, .link-button {
       padding: 11px 14px;
       border: 0;
       border-radius: 10px;
@@ -135,33 +167,121 @@
       color: #fff;
       font: inherit;
       cursor: pointer;
-    }
-    button.secondary {
-      background: #3e3a35;
-    }
-    button:hover { background: var(--accent-strong); }
-    button.secondary:hover { background: #272421; }
-    .status-pill {
+      text-decoration: none;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: rgba(143, 83, 44, 0.1);
-      font-size: 13px;
+      justify-content: center;
+    }
+    button.secondary, .link-button.secondary { background: #3e3a35; }
+    button.ghost, .link-button.ghost {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text);
+    }
+    button:hover, .link-button:hover { background: var(--accent-strong); }
+    button.secondary:hover, .link-button.secondary:hover { background: #272421; }
+    button.ghost:hover, .link-button.ghost:hover {
+      background: rgba(143, 83, 44, 0.08);
       color: var(--accent-strong);
     }
-    .status-pill.error {
-      background: rgba(163, 59, 59, 0.12);
-      color: var(--danger);
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 14px;
     }
-    .status-pill.success {
+    th, td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: rgba(143, 83, 44, 0.08);
+      color: var(--accent-strong);
+    }
+    .badge.ok {
       background: rgba(47, 107, 72, 0.12);
       color: var(--ok);
     }
-    @media (max-width: 960px) {
+    .badge.error {
+      background: rgba(163, 59, 59, 0.12);
+      color: var(--danger);
+    }
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.7);
+    }
+    .checkbox-item input {
+      width: auto;
+      margin: 0;
+    }
+    .mini-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .mini-actions form { display: inline-flex; }
+    .subtle {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .empty {
+      padding: 12px;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.5);
+    }
+    @media (max-width: 1080px) {
       .grid { grid-template-columns: 1fr; }
-      .form-grid, .stats { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 760px) {
+      .form-grid, .stats, .checkbox-grid { grid-template-columns: 1fr; }
+      .topbar { flex-direction: column; align-items: flex-start; }
+      table, thead, tbody, tr, td, th { display: block; }
+      thead { display: none; }
+      tr {
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 10px;
+        margin-bottom: 10px;
+      }
+      td {
+        border: 0;
+        padding: 6px 0;
+      }
+      td::before {
+        content: attr(data-label);
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 4px;
+      }
     }
   </style>
 </head>
@@ -182,7 +302,7 @@
     {% endwith %}
 
     <div class="grid">
-      <section>
+      <section class="stack">
         <div class="card">
           <h2>执行状态</h2>
           <p class="status-pill {{ state.status if state.status in ['success', 'error'] else '' }}">
@@ -190,105 +310,398 @@
           </p>
           <div class="stats">
             <div class="stat"><strong>调度器状态</strong>{{ state.scheduler_status or 'idle' }}</div>
-            <div class="stat"><strong>调度状态</strong>{{ state.schedule_message or '未设置' }}</div>
+            <div class="stat"><strong>调度说明</strong>{{ state.schedule_message or '未设置' }}</div>
             <div class="stat"><strong>下次执行</strong>{{ state.next_run_at or '未计划' }}</div>
-            <div class="stat"><strong>最后模式</strong>{{ state.last_run_mode or '无' }}</div>
-            <div class="stat"><strong>最近账号</strong>{{ state.last_username or '无' }}</div>
+            <div class="stat"><strong>最近模式</strong>{{ state.last_run_mode or '无' }}</div>
+            <div class="stat"><strong>最近账户</strong>{{ state.last_account_name or '无' }}</div>
+            <div class="stat"><strong>最近平台</strong>{{ state.last_platform_name or '无' }}</div>
             <div class="stat"><strong>开始时间</strong>{{ state.last_started_at or '无' }}</div>
             <div class="stat"><strong>结束时间</strong>{{ state.last_finished_at or '无' }}</div>
+            <div class="stat"><strong>站点账号</strong>{{ state.last_username or '无' }}</div>
             <div class="stat"><strong>上传量</strong>{{ state.last_uploaded or '-' }}</div>
             <div class="stat"><strong>下载量</strong>{{ state.last_downloaded or '-' }}</div>
             <div class="stat"><strong>魔力值</strong>{{ state.last_bonus or '-' }}</div>
-            <div class="stat"><strong>最后浏览</strong>{{ state.last_browse or '-' }}</div>
           </div>
           <label class="wide">
             最近结果
             <input type="text" value="{{ state.last_message or '暂无执行记录' }}" readonly>
           </label>
-          <form method="post" action="{{ url_for('run_now') }}">
+        </div>
+
+        <div class="card">
+          <h2>平台配置</h2>
+          {% if platforms %}
+            <table>
+              <thead>
+                <tr>
+                  <th>平台</th>
+                  <th>API Host</th>
+                  <th>API Referer</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for platform in platforms %}
+                  <tr>
+                    <td data-label="平台">
+                      <strong>{{ platform.name }}</strong><br>
+                      <span class="subtle">{{ platform.code }}</span>
+                      {% if platform.builtin %}<span class="badge">内置</span>{% endif %}
+                    </td>
+                    <td data-label="API Host">{{ platform.api_host }}</td>
+                    <td data-label="API Referer">{{ platform.referer }}</td>
+                    <td data-label="状态">
+                      <span class="badge {{ 'ok' if platform.enabled else 'error' }}">{{ '启用' if platform.enabled else '停用' }}</span>
+                    </td>
+                    <td data-label="操作">
+                      <div class="mini-actions">
+                        <form method="post" action="{{ url_for('toggle_platform', platform_id=platform.id) }}">
+                          <input type="hidden" name="enabled" value="{{ 0 if platform.enabled else 1 }}">
+                          <button type="submit" class="ghost">{{ '停用' if platform.enabled else '启用' }}</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="empty">暂无平台配置。</div>
+          {% endif %}
+          <p class="hint">当前仅内置 `mt` 平台，`API Host` 和 `API Referer` 固定为只读值。</p>
+        </div>
+
+        <div class="card">
+          <h2>通知管理</h2>
+          {% if channels %}
+            <table>
+              <thead>
+                <tr>
+                  <th>名称</th>
+                  <th>类型</th>
+                  <th>目标</th>
+                  <th>代理</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for channel in channels %}
+                  <tr>
+                    <td data-label="名称">
+                      <strong>{{ channel.name }}</strong><br>
+                      <span class="subtle">ID {{ channel.id }}</span>
+                    </td>
+                    <td data-label="类型">{{ channel.type }}</td>
+                    <td data-label="目标">{{ channel.tgbot_chat_id or '-' }}</td>
+                    <td data-label="代理">{{ channel.tgbot_proxy or '-' }}</td>
+                    <td data-label="状态">
+                      <span class="badge {{ 'ok' if channel.enabled else 'error' }}">{{ '启用' if channel.enabled else '停用' }}</span>
+                    </td>
+                    <td data-label="操作">
+                      <div class="mini-actions">
+                        <a class="link-button ghost" href="{{ url_for('dashboard', edit_channel=channel.id) }}">编辑</a>
+                        <form method="post" action="{{ url_for('toggle_notification', channel_id=channel.id) }}">
+                          <input type="hidden" name="enabled" value="{{ 0 if channel.enabled else 1 }}">
+                          <button type="submit" class="ghost">{{ '停用' if channel.enabled else '启用' }}</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="empty">暂无通知渠道。</div>
+          {% endif %}
+
+          <h3>{{ '编辑通知渠道' if edit_channel else '新增通知渠道' }}</h3>
+          <form method="post" action="{{ url_for('save_notification') }}">
+            <input type="hidden" name="channel_id" value="{{ edit_channel.id if edit_channel else '' }}">
+            <div class="form-grid">
+              <label>
+                渠道名称
+                <input type="text" name="name" value="{{ edit_channel.name if edit_channel else '' }}" placeholder="例如：默认 TG">
+              </label>
+              <label>
+                渠道类型
+                <select name="type">
+                  <option value="tg" selected>tg</option>
+                </select>
+              </label>
+              <label>
+                Telegram Bot Token
+                <input type="password" name="tgbot_token" placeholder="{{ '已保存，留空不变' if channel_secret_status.tgbot_token else '请输入 Bot Token' }}">
+              </label>
+              <label>
+                Telegram Chat ID
+                <input type="number" name="tgbot_chat_id" value="{{ edit_channel.tgbot_chat_id if edit_channel else '' }}">
+              </label>
+              <label class="wide">
+                Telegram 代理
+                <input type="text" name="tgbot_proxy" value="{{ edit_channel.tgbot_proxy if edit_channel else '' }}" placeholder="http://127.0.0.1:7890">
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; margin-top:28px;">
+                <input type="checkbox" name="enabled" {% if not edit_channel or edit_channel.enabled %}checked{% endif %} style="width:auto; margin:0;">
+                启用该通知渠道
+              </label>
+            </div>
+            <p class="hint">敏感字段留空时不会覆盖现有值。</p>
             <div class="actions">
-              <button type="submit">立即执行一次</button>
+              <button type="submit">保存通知渠道</button>
+              {% if edit_channel %}
+                <a class="link-button ghost" href="{{ url_for('dashboard') }}">取消编辑</a>
+              {% endif %}
             </div>
           </form>
         </div>
 
         <div class="card">
-          <h2>任务配置</h2>
-          <form method="post" action="{{ url_for('save_settings') }}">
+          <h2>登录账户管理</h2>
+          {% if accounts %}
+            <table>
+              <thead>
+                <tr>
+                  <th>账户</th>
+                  <th>平台</th>
+                  <th>调度</th>
+                  <th>通知渠道</th>
+                  <th>最近状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for account in accounts %}
+                  <tr>
+                    <td data-label="账户">
+                      <strong>{{ account.name }}</strong><br>
+                      <span class="subtle">{{ account.username or '未填写站点用户名' }}</span><br>
+                      <span class="badge {{ 'ok' if account.enabled else 'error' }}">{{ '启用' if account.enabled else '停用' }}</span>
+                    </td>
+                    <td data-label="平台">
+                      {{ account.platform_name }}<br>
+                      <span class="subtle">{{ account.platform_code }}</span>
+                    </td>
+                    <td data-label="调度">
+                      {{ account.crontab or '未设置' }}<br>
+                      <span class="subtle">超时 {{ account.timeout }}s / {{ account.cookie_mode }}</span>
+                    </td>
+                    <td data-label="通知渠道">{{ account.notification_names or '未绑定' }}</td>
+                    <td data-label="最近状态">
+                      {% if account.last_status %}
+                        <span class="badge {{ 'ok' if account.last_status == 'success' else 'error' }}">{{ account.last_status }}</span><br>
+                        <span class="subtle">{{ account.last_started_at }}</span><br>
+                        <span class="subtle">{{ account.last_message }}</span>
+                      {% else %}
+                        <span class="subtle">暂无执行记录</span>
+                      {% endif %}
+                    </td>
+                    <td data-label="操作">
+                      <div class="mini-actions">
+                        <a class="link-button ghost" href="{{ url_for('dashboard', edit_account=account.id) }}">编辑</a>
+                        <form method="post" action="{{ url_for('toggle_account', account_id=account.id) }}">
+                          <input type="hidden" name="enabled" value="{{ 0 if account.enabled else 1 }}">
+                          <button type="submit" class="ghost">{{ '停用' if account.enabled else '启用' }}</button>
+                        </form>
+                        <form method="post" action="{{ url_for('run_account', account_id=account.id) }}">
+                          <button type="submit" class="secondary">立即执行</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="empty">暂无登录账户。</div>
+          {% endif %}
+
+          <h3>{{ '编辑登录账户' if edit_account else '新增登录账户' }}</h3>
+          <form method="post" action="{{ url_for('save_account') }}">
+            <input type="hidden" name="account_id" value="{{ edit_account.id if edit_account else '' }}">
             <div class="form-grid">
               <label>
+                账户名称
+                <input type="text" name="name" value="{{ edit_account.name if edit_account else '' }}" placeholder="例如：主力账户">
+              </label>
+              <label>
+                平台
+                <select name="platform_id">
+                  {% for platform in enabled_platforms %}
+                    {% set selected_platform_id = edit_account.platform_id if edit_account else default_platform_id %}
+                    <option value="{{ platform.id }}" {% if platform.id == selected_platform_id %}selected{% endif %}>
+                      {{ platform.name }} ({{ platform.code }})
+                    </option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label>
                 M-Team 用户名
-                <input type="text" name="username" value="{{ settings.username }}">
+                <input type="text" name="username" value="{{ edit_account.username if edit_account else '' }}">
               </label>
               <label>
                 M-Team 密码
-                <input type="password" name="password" placeholder="{{ '已保存，留空不变' if secret_status.password else '留空表示未配置' }}">
+                <input type="password" name="password" placeholder="{{ '已保存，留空不变' if account_secret_status.password else '留空表示未配置' }}">
               </label>
               <label>
                 TOTP 密钥
-                <input type="password" name="totpsecret" placeholder="{{ '已保存，留空不变' if secret_status.totpsecret else '留空表示未配置' }}">
+                <input type="password" name="totpsecret" placeholder="{{ '已保存，留空不变' if account_secret_status.totpsecret else '留空表示未配置' }}">
               </label>
               <label>
                 代理
-                <input type="text" name="proxy" value="{{ settings.proxy }}" placeholder="http://127.0.0.1:3301">
+                <input type="text" name="proxy" value="{{ edit_account.proxy if edit_account else '' }}" placeholder="http://127.0.0.1:3301">
               </label>
               <label>
                 Cron 表达式
-                <input type="text" name="crontab" value="{{ settings.crontab }}" placeholder="2 */2 * * *">
-              </label>
-              <label>
-                API Host
-                <input type="text" name="api_host" value="{{ settings.api_host }}">
-              </label>
-              <label class="wide">
-                API Referer
-                <input type="text" name="referer" value="{{ settings.referer }}">
+                <input type="text" name="crontab" value="{{ edit_account.crontab if edit_account else '' }}" placeholder="2 */2 * * *">
               </label>
               <label>
                 M-Team Auth Token
-                <input type="password" name="m_team_auth" placeholder="{{ '已保存，留空不变' if secret_status.m_team_auth else '可选，留空表示未配置' }}">
+                <input type="password" name="m_team_auth" placeholder="{{ '已保存，留空不变' if account_secret_status.m_team_auth else '可选，留空表示未配置' }}">
               </label>
               <label>
                 M-Team DID
-                <input type="text" name="m_team_did" value="{{ settings.m_team_did }}">
-              </label>
-              <label>
-                Telegram Bot Token
-                <input type="password" name="tgbot_token" placeholder="{{ '已保存，留空不变' if secret_status.tgbot_token else '留空表示未配置' }}">
-              </label>
-              <label>
-                Telegram Chat ID
-                <input type="number" name="tgbot_chat_id" value="{{ settings.tgbot_chat_id }}">
-              </label>
-              <label>
-                Telegram 代理
-                <input type="text" name="tgbot_proxy" value="{{ settings.tgbot_proxy }}">
+                <input type="text" name="m_team_did" value="{{ edit_account.m_team_did if edit_account else '' }}">
               </label>
               <label>
                 超时秒数
-                <input type="number" name="timeout" value="{{ settings.timeout }}">
+                <input type="number" name="timeout" value="{{ edit_account.timeout if edit_account else default_timeout }}">
               </label>
               <label>
                 Cookie 模式
                 <select name="cookie_mode">
-                  <option value="normal" {% if settings.cookie_mode == 'normal' %}selected{% endif %}>normal</option>
-                  <option value="strict" {% if settings.cookie_mode == 'strict' %}selected{% endif %}>strict</option>
+                  {% set account_cookie_mode = edit_account.cookie_mode if edit_account else default_cookie_mode %}
+                  <option value="normal" {% if account_cookie_mode == 'normal' %}selected{% endif %}>normal</option>
+                  <option value="strict" {% if account_cookie_mode == 'strict' %}selected{% endif %}>strict</option>
                 </select>
               </label>
               <label style="display:flex; align-items:center; gap:8px; margin-top:28px;">
-                <input type="checkbox" name="skip_cache" {% if settings.skip_cache %}checked{% endif %} style="width:auto; margin:0;">
+                <input type="checkbox" name="enabled" {% if not edit_account or edit_account.enabled %}checked{% endif %} style="width:auto; margin:0;">
+                启用该登录账户
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; margin-top:28px;">
+                <input type="checkbox" name="skip_cache" {% if edit_account and edit_account.skip_cache %}checked{% endif %} style="width:auto; margin:0;">
                 每次都跳过缓存并强制重新登录
               </label>
+              <div class="wide">
+                <label>通知渠道绑定</label>
+                {% if channels %}
+                  <div class="checkbox-grid">
+                    {% for channel in channels if channel.enabled %}
+                      <label class="checkbox-item">
+                        <input type="checkbox" name="notification_channel_ids" value="{{ channel.id }}" {% if channel.id in selected_channel_ids %}checked{% endif %}>
+                        <span>{{ channel.name }} ({{ channel.type }})</span>
+                      </label>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="empty">还没有可绑定的启用通知渠道。</div>
+                {% endif %}
+              </div>
             </div>
-            <p class="hint">密码、TOTP、鉴权 Token 留空时不会覆盖当前已保存值。</p>
+            <p class="hint">密码、TOTP、Auth Token 留空时不会覆盖当前已保存值。账户只能选择已启用的平台和通知渠道。</p>
             <div class="actions">
-              <button type="submit">保存配置</button>
+              <button type="submit">保存登录账户</button>
+              {% if edit_account %}
+                <a class="link-button ghost" href="{{ url_for('dashboard') }}">取消编辑</a>
+              {% endif %}
             </div>
           </form>
         </div>
       </section>
 
-      <section>
+      <section class="stack">
+        <div class="card">
+          <h2>执行记录查询</h2>
+          <form method="get" action="{{ url_for('dashboard') }}">
+            <div class="form-grid">
+              <label>
+                账户
+                <select name="account_id">
+                  <option value="">全部账户</option>
+                  {% for account in accounts %}
+                    <option value="{{ account.id }}" {% if history_filters.account_id == (account.id|string) %}selected{% endif %}>{{ account.name }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label>
+                平台
+                <select name="platform_id">
+                  <option value="">全部平台</option>
+                  {% for platform in platforms %}
+                    <option value="{{ platform.id }}" {% if history_filters.platform_id == (platform.id|string) %}selected{% endif %}>{{ platform.name }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label>
+                状态
+                <select name="status">
+                  <option value="">全部状态</option>
+                  <option value="success" {% if history_filters.status == 'success' %}selected{% endif %}>success</option>
+                  <option value="error" {% if history_filters.status == 'error' %}selected{% endif %}>error</option>
+                </select>
+              </label>
+              <label>
+                开始时间
+                <input type="datetime-local" name="started_from" value="{{ history_filters.started_from }}">
+              </label>
+              <label>
+                结束时间
+                <input type="datetime-local" name="started_to" value="{{ history_filters.started_to }}">
+              </label>
+            </div>
+            <div class="actions">
+              <button type="submit">查询执行记录</button>
+              <a class="link-button ghost" href="{{ url_for('dashboard') }}">清空筛选</a>
+            </div>
+          </form>
+
+          {% if history_records %}
+            <table>
+              <thead>
+                <tr>
+                  <th>开始时间</th>
+                  <th>账户 / 平台</th>
+                  <th>触发方式</th>
+                  <th>状态</th>
+                  <th>结果</th>
+                  <th>指标</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for record in history_records %}
+                  <tr>
+                    <td data-label="开始时间">
+                      {{ record.started_at }}<br>
+                      <span class="subtle">结束 {{ record.finished_at }}</span>
+                    </td>
+                    <td data-label="账户 / 平台">
+                      <strong>{{ record.account_name }}</strong><br>
+                      <span class="subtle">{{ record.platform_code }}</span>
+                    </td>
+                    <td data-label="触发方式">{{ record.trigger_mode }}</td>
+                    <td data-label="状态">
+                      <span class="badge {{ 'ok' if record.status == 'success' else 'error' }}">{{ record.status }}</span>
+                    </td>
+                    <td data-label="结果">
+                      {{ record.result_message }}<br>
+                      <span class="subtle">{{ record.run_username or '无站点用户名返回' }}</span>
+                    </td>
+                    <td data-label="指标">
+                      U {{ record.uploaded or '-' }} / D {{ record.downloaded or '-' }}<br>
+                      <span class="subtle">Bonus {{ record.bonus or '-' }}</span><br>
+                      <span class="subtle">Browse {{ record.last_browse or '-' }}</span>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="empty">没有匹配的执行记录。</div>
+          {% endif %}
+        </div>
+
         <div class="card">
           <h2>管理员账号</h2>
           <form method="post" action="{{ url_for('update_admin') }}">

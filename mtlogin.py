@@ -155,6 +155,7 @@ class KVStore:
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
         self.conn = sqlite3.connect(path, check_same_thread=False)
+        self.conn.row_factory = sqlite3.Row
         self.conn.execute("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
         self.conn.commit()
         self.lock = threading.Lock()
@@ -173,6 +174,25 @@ class KVStore:
         with self.lock:
             self.conn.execute("DELETE FROM kv WHERE k=?", (key,))
             self.conn.commit()
+
+    def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
+        with self.lock:
+            cur = self.conn.execute(sql, params)
+            self.conn.commit()
+            return cur
+
+    def executemany(self, sql: str, seq_of_params: list[tuple]) -> None:
+        with self.lock:
+            self.conn.executemany(sql, seq_of_params)
+            self.conn.commit()
+
+    def fetchone(self, sql: str, params: tuple = ()) -> Optional[sqlite3.Row]:
+        with self.lock:
+            return self.conn.execute(sql, params).fetchone()
+
+    def fetchall(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
+        with self.lock:
+            return self.conn.execute(sql, params).fetchall()
 
 
 class MTClient:
@@ -377,7 +397,7 @@ class JobServer:
             return None
         return {"http": proxy, "https": proxy}
 
-    def run_once(self) -> TaskResult:
+    def run_once(self, send_notifications: bool = True) -> TaskResult:
         started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_info("Task execution started")
         try:
@@ -385,7 +405,8 @@ class JobServer:
                 self.client.login()
             self.client.check()
             self.failed = 0
-            self.notify_success()
+            if send_notifications:
+                self.notify_success()
             log_info("Task execution succeeded")
             return TaskResult(
                 success=True,
@@ -404,7 +425,8 @@ class JobServer:
             if self.cfg.cookie_mode == "strict" or self.failed > 5:
                 self.client.store.delete(DB_KEY)
                 log_info("Triggered local token cleanup")
-            self.notify_error(str(exc))
+            if send_notifications:
+                self.notify_error(str(exc))
             log_info(f"Task execution failed: {exc}")
             return TaskResult(
                 success=False,
