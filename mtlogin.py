@@ -10,13 +10,15 @@ import sqlite3
 import sys
 import threading
 import time
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Optional
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode
 
 import pyotp
 import requests as std_requests
+from croniter import croniter
 from curl_cffi import requests
 
 DB_KEY = "m-team-auth"
@@ -29,10 +31,21 @@ LOCAL_CONFIG_OVERRIDES: Dict[str, object] = {
     # "username": "your_username",
     # "password": "your_password",
     # "totpsecret": "your_totp_secret",
+    # "crontab": "2 */2 * * *",
     # "tgbot_token": "123456:token",
     # "tgbot_chat_id": -1001234567890,
 }
 LOG_FILE_PATH: Optional[str] = None
+SENSITIVE_FIELDS = {
+    "password",
+    "otpCode",
+    "totpsecret",
+    "tgbot_token",
+    "ntfy_token",
+    "qqpush_token",
+    "m_team_auth",
+}
+SENSITIVE_HEADERS = {"authorization"}
 
 
 def log_info(message: str) -> None:
@@ -48,11 +61,47 @@ def log_info(message: str) -> None:
             fp.write(line + "\n")
 
 
+def mask_secret(value: Any) -> str:
+    text = str(value)
+    if not text:
+        return ""
+    if len(text) <= 8:
+        return "*" * len(text)
+    return f"{text[:3]}***{text[-3:]}"
+
+
+def redact_headers(headers: Dict[str, str]) -> Dict[str, str]:
+    redacted: Dict[str, str] = {}
+    for key, value in headers.items():
+        if key.lower() in SENSITIVE_HEADERS:
+            redacted[key] = mask_secret(value)
+        else:
+            redacted[key] = value
+    return redacted
+
+
+def redact_body(data: Any) -> Any:
+    if not isinstance(data, str) or "=" not in data:
+        return data
+    try:
+        items = parse_qsl(data, keep_blank_values=True)
+    except ValueError:
+        return data
+    redacted = []
+    for key, value in items:
+        if key in SENSITIVE_FIELDS:
+            redacted.append((key, mask_secret(value)))
+        else:
+            redacted.append((key, value))
+    return urlencode(redacted)
+
+
 @dataclass
 class Config:
     username: str = ""
     password: str = ""
     totpsecret: str = ""
+    crontab: str = ""
     proxy: str = ""
     qqpush: str = ""
     qqpush_token: str = ""
@@ -84,6 +133,20 @@ class Config:
     ntfy_token: str = ""
     cookie_mode: str = "normal"
     skip_cache: bool = False
+
+
+@dataclass
+class TaskResult:
+    success: bool
+    message: str
+    started_at: str
+    finished_at: str
+    username: str = ""
+    uploaded: str = ""
+    downloaded: str = ""
+    bonus: str = ""
+    last_login: str = ""
+    last_browse: str = ""
 
 
 class KVStore:
@@ -139,10 +202,10 @@ class MTClient:
 
     def _log_http(self, method: str, url: str, req_headers: Dict[str, str], req_data: Any, resp: Any) -> None:
         log_info(f"HTTP {method} {url}")
-        log_info(f"Request headers: {json.dumps(req_headers, ensure_ascii=False)}")
-        log_info(f"Request body: {req_data}")
+        log_info(f"Request headers: {json.dumps(redact_headers(req_headers), ensure_ascii=False)}")
+        log_info(f"Request body: {redact_body(req_data)}")
         log_info(f"Response status: {resp.status_code}")
-        log_info(f"Response headers: {dict(resp.headers)}")
+        log_info(f"Response headers: {redact_headers(dict(resp.headers))}")
         log_info(f"Response body: {resp.text}")
 
     def _request(
@@ -314,7 +377,8 @@ class JobServer:
             return None
         return {"http": proxy, "https": proxy}
 
-    def run_once(self) -> None:
+    def run_once(self) -> TaskResult:
+        started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_info("Task execution started")
         try:
             if not self.cfg.m_team_auth and not self.cfg.m_team_did:
@@ -323,6 +387,18 @@ class JobServer:
             self.failed = 0
             self.notify_success()
             log_info("Task execution succeeded")
+            return TaskResult(
+                success=True,
+                message="Task execution succeeded",
+                started_at=started_at,
+                finished_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                username=self.client.username,
+                uploaded=self.client.uploaded,
+                downloaded=self.client.downloaded,
+                bonus=self.client.bonus,
+                last_login=self.client.last_login,
+                last_browse=self.client.last_browse,
+            )
         except Exception as exc:
             self.failed += 1
             if self.cfg.cookie_mode == "strict" or self.failed > 5:
@@ -330,6 +406,33 @@ class JobServer:
                 log_info("Triggered local token cleanup")
             self.notify_error(str(exc))
             log_info(f"Task execution failed: {exc}")
+            return TaskResult(
+                success=False,
+                message=str(exc),
+                started_at=started_at,
+                finished_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                username=self.client.username,
+                uploaded=self.client.uploaded,
+                downloaded=self.client.downloaded,
+                bonus=self.client.bonus,
+                last_login=self.client.last_login,
+                last_browse=self.client.last_browse,
+            )
+
+    def loop(self) -> None:
+        if not self.cfg.crontab:
+            raise ValueError("CRONTAB is required for scheduled mode")
+        if not croniter.is_valid(self.cfg.crontab):
+            raise ValueError(f"Invalid CRONTAB expression: {self.cfg.crontab}")
+
+        schedule = croniter(self.cfg.crontab, datetime.now())
+        log_info(f"Schedule mode enabled, CRONTAB={self.cfg.crontab}")
+        while True:
+            next_at = schedule.get_next(datetime)
+            sleep_s = max(0, (next_at - datetime.now()).total_seconds())
+            log_info(f"Next run at {next_at.strftime('%Y-%m-%d %H:%M:%S')}, sleeping {int(sleep_s)} seconds")
+            time.sleep(sleep_s)
+            self.run_once()
 
     def notify_success(self) -> None:
         msg = (
@@ -396,6 +499,7 @@ def load_config() -> Config:
         username=os.getenv("USERNAME", ""),
         password=os.getenv("PASSWORD", ""),
         totpsecret=os.getenv("TOTPSECRET", ""),
+        crontab=os.getenv("CRONTAB", ""),
         proxy=os.getenv("PROXY", ""),
         qqpush=os.getenv("QQPUSH", ""),
         qqpush_token=os.getenv("QQPUSH_TOKEN", ""),
@@ -429,11 +533,16 @@ def load_config() -> Config:
     )
 
 
+def clone_config(cfg: Config) -> Config:
+    return deepcopy(cfg)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="m-team keepalive script (Python)")
     parser.add_argument("--username")
     parser.add_argument("--password")
     parser.add_argument("--totpsecret")
+    parser.add_argument("--crontab", help="Cron expression for scheduled execution, for example '2 */2 * * *'")
     parser.add_argument("--m-team-auth")
     parser.add_argument("--m-team-did")
     parser.add_argument("--proxy", help="HTTP/HTTPS proxy URL, for example http://127.0.0.1:3301")
@@ -459,6 +568,7 @@ def apply_overrides(cfg: Config, args: argparse.Namespace) -> Config:
         "username": args.username,
         "password": args.password,
         "totpsecret": args.totpsecret,
+        "crontab": args.crontab,
         "m_team_auth": args.m_team_auth,
         "m_team_did": args.m_team_did,
         "proxy": args.proxy,
@@ -486,6 +596,7 @@ if __name__ == "__main__":
             + json.dumps(
                 {
                     "api_host": cfg.api_host,
+                    "crontab": cfg.crontab,
                     "db_path": cfg.db_path,
                     "skip_cache": cfg.skip_cache,
                     "has_username": bool(cfg.username),
@@ -499,7 +610,10 @@ if __name__ == "__main__":
             )
         )
     job = JobServer(cfg)
-    job.run_once()
-    log_info("Single-run execution completed, exiting")
+    if cfg.crontab:
+        job.loop()
+    else:
+        job.run_once()
+        log_info("Single-run execution completed, exiting")
     sys.exit(0)
 

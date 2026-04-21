@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MTLogin 管理后台</title>
+  <style>
+    :root {
+      --bg: #f6f3eb;
+      --card: #fffdf8;
+      --line: #ddd2c2;
+      --text: #1f1b16;
+      --muted: #6a6258;
+      --accent: #9c5b2e;
+      --accent-strong: #7b421c;
+      --danger: #a43232;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at top left, rgba(156, 91, 46, 0.12), transparent 30%),
+        linear-gradient(160deg, #f6f3eb, #efe6d8);
+      color: var(--text);
+      font-family: "Helvetica Neue", "PingFang SC", sans-serif;
+    }
+    .card {
+      width: min(420px, calc(100vw - 32px));
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--card);
+      box-shadow: 0 18px 60px rgba(45, 26, 8, 0.08);
+    }
+    h1 { margin: 0 0 10px; font-size: 28px; }
+    p { margin: 0 0 24px; color: var(--muted); }
+    label { display: block; margin-bottom: 14px; font-size: 14px; }
+    input {
+      width: 100%;
+      margin-top: 8px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font: inherit;
+      background: #fff;
+    }
+    button {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px 14px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover { background: var(--accent-strong); }
+    .flash {
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+    .flash.error { background: rgba(164, 50, 50, 0.12); color: var(--danger); }
+    .flash.success { background: rgba(35, 116, 72, 0.12); color: #206341; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>MTLogin 管理后台</h1>
+    <p>使用管理员账号登录后，配置 M-Team 参数并由后台定时执行。</p>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    <form method="post">
+      <label>
+        管理员账号
+        <input type="text" name="username" autocomplete="username" required>
+      </label>
+      <label>
+        管理员密码
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit">登录</button>
+    </form>
+  </main>
+</body>
+</html>

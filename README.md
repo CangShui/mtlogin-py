@@ -1,16 +1,39 @@
-# mtlogin.py 使用说明
+# MTLogin 管理后台
 
-一个用于 M-Team 账号保活/状态刷新的 Python 脚本。 基于项目https://github.com/scjtqs2/mtlogin 通过python重构
+这个项目现在是一个带登录后台的 M-Team 管理服务。管理员登录后，可以在页面里配置 M-Team 账号、密码、TOTP、代理、Telegram 和 cron 表达式，后台会按计划执行登录/刷新操作，也支持手动立即执行。
 
-脚本会进行登录（或复用本地缓存 token），然后请求一组接口并尝试调用 `updateLastBrowse` 更新浏览状态；支持 Telegram/QQPush/Feishu/ntfy 通知。
-
-<img width="429" height="322" alt="image" src="https://github.com/user-attachments/assets/6eb6e19b-d969-4c8e-8435-509834ba0c46" />
-
-
-## 安装依赖示例：
+## 安装依赖
 
 ```bash
 pip install -r requirements.txt
+```
+
+## 本地启动
+
+```bash
+python app.py
+```
+
+默认行为：
+
+- 管理后台地址：`http://127.0.0.1:8000`
+- 默认管理员账号：`admin`
+- 默认管理员密码：`admin123456`
+- 本地数据库：`./mtlogin.db`
+- 本地日志：`./mtlogin.log`
+
+首次登录后建议立即在后台修改管理员密码。
+
+如果需要自定义启动参数：
+
+```bash
+python app.py \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --db-path ./mtlogin.db \
+  --log-file ./mtlogin.log \
+  --admin-username admin \
+  --admin-password admin123456
 ```
 
 ## Docker 使用
@@ -21,161 +44,116 @@ pip install -r requirements.txt
 docker build -t mtlogin-py .
 ```
 
-运行容器时，日志和 SQLite 数据库会默认写到容器内 `/app/mtlogin.log` 和 `/app/mtlogin.db`，不需要映射到宿主机。只需要传入账号、密码、TG、代理等环境变量：
+运行容器：
 
 ```bash
-docker run --rm \
-  -e USERNAME="站点用户名" \
-  -e PASSWORD="站点密码" \
-  -e TOTPSECRET="TOTP密钥" \
-  -e TGBOT_TOKEN="00000000000:AAAAAAAAAAAAAAAAAAAAAAA" \
-  -e TGBOT_CHAT_ID="-1000000000000" \
-  -e PROXY="http://127.0.0.1:3301" \
+docker run --rm -p 8000:8000 mtlogin-py
+```
+
+如果你想在首次启动时指定管理员账号密码：
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e ADMIN_USERNAME="admin" \
+  -e ADMIN_PASSWORD="change-me-now" \
   mtlogin-py
 ```
 
-如果不需要 Telegram 或代理，去掉对应的 `-e` 参数即可。
+容器内会把日志和 SQLite 数据库写到 `/app/mtlogin.log`、`/app/mtlogin.db`，不需要映射宿主机。
 
-## 快速开始
-```bash
-python mtlogin.py  --username "站点用户名"   --password "站点密码"   --totpsecret "TOTP密钥"   --tgbot-token "00000000000:AAAAAAAAAAAAAAAAAAAAAAA"  --tgbot-chat-id "-1000000000000"  --log-file /var/log/mtlogin.log   --db-path /root/mtlogin.db
-```
-如果需要走代理：
-```bash
-python mtlogin.py --username "站点用户名" --password "站点密码" --totpsecret "TOTP密钥" --proxy "http://127.0.0.1:3301"
-```
-如果想要打印请求详情：
-```bash
-python mtlogin.py  --username "站点用户名"   --password "站点密码"   --totpsecret "TOTP密钥"   --tgbot-token "00000000000:AAAAAAAAAAAAAAAAAAAAAAA"  --tgbot-chat-id "-1000000000000"  --log-file /var/log/mtlogin.log   --db-path /root/mtlogin.db  --verbose-config  --skip-cache
-```
-## 定时执行
-```bash
-nano /etc/crontab
-```
-## 功能概览
+## 后台功能
 
-- 支持账号密码 + TOTP 二次验证登录
-- 支持直接使用 `M_TEAM_AUTH` + `M_TEAM_DID`
-- 本地持久化缓存登录态（SQLite）
-- 支持代理
-- 支持失败通知与成功通知
-- 支持详细 HTTP 调试日志
+- 管理员账号密码登录
+- 页面配置 M-Team 用户名、密码、TOTP、代理、Cron 表达式
+- 页面配置 Telegram Bot Token、Chat ID、代理
+- 手动立即执行一次
+- 后台线程按 cron 表达式定时执行
+- 页面查看最近执行状态和日志
 
-## 命令行参数
+## 后台配置说明
+
+登录后台后可以配置这些常用字段：
+
+- `M-Team 用户名`
+- `M-Team 密码`
+- `TOTP 密钥`
+- `代理`
+- `Cron 表达式`
+- `Telegram Bot Token`
+- `Telegram Chat ID`
+- `Telegram 代理`
+- `API Host`
+- `API Referer`
+- `Cookie 模式`
+
+说明：
+
+- 密码、TOTP、Auth Token、Telegram Token 这些敏感字段在页面里留空时，不会覆盖已有值。
+- 配置保存后，后台调度线程会自动重新加载计划。
+- 点“立即执行一次”会立刻触发一轮任务。
+
+## 常见 Cron 示例
 
 ```bash
-python mtlogin.py [options]
-```
+# 每 2 小时的第 2 分钟执行一次
+2 */2 * * *
 
-| 参数 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `--username` | string | 空 | 登录用户名 |
-| `--password` | string | 空 | 登录密码 |
-| `--totpsecret` | string | 空 | TOTP 密钥（2FA） |
-| `--m-team-auth` | string | 空 | 直接使用鉴权 token |
-| `--m-team-did` | string | 空 | 设备 DID |
-| `--proxy` | string | 空 | HTTP/HTTPS 代理地址，例如 `http://127.0.0.1:3301` |
-| `--api-host` | string | `api.m-team.io` | API 域名 |
-| `--api-referer` | string | `https://kp.m-team.cc/` | Referer/Origin |
-| `--tgbot-token` | string | 空 | Telegram Bot Token |
-| `--tgbot-chat-id` | int | `0` | Telegram Chat ID |
-| `--db-path` | string | `/data/cookie.db` | SQLite 数据库路径 |
-| `--skip-cache` | flag | `false` | 忽略本地 token/did 缓存并强制重新登录 |
-| `--use-local-config` | flag | `false` | 启用脚本内 `LOCAL_CONFIG_OVERRIDES` 覆盖 |
-| `--verbose-config` | flag | `false` | 启动时打印关键配置（脱敏） |
-| `--log-file` | string | 空 | 日志文件路径 |
+# 每天凌晨 3:30 执行一次
+30 3 * * *
+
+# 每 15 分钟执行一次
+*/15 * * * *
+```
 
 ## 环境变量
 
-脚本支持环境变量配置（可与命令行混用，命令行优先）。
+`app.py` 启动时支持这些环境变量：
 
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
-| `USERNAME` | 空 | 用户名 |
-| `PASSWORD` | 空 | 密码 |
-| `TOTPSECRET` | 空 | TOTP 密钥 |
-| `PROXY` | 空 | 代理 |
-| `CRONTAB` | `2 */2 * * *` | cron 表达式（当前主流程默认单次执行） |
-| `QQPUSH` | 空 | QQ 推送目标 |
-| `QQPUSH_TOKEN` | 空 | QQPush Token |
-| `M_TEAM_AUTH` | 空 | 鉴权 token |
-| `UA` | 见源码默认值 | User-Agent |
-| `API_HOST` | `api.m-team.io` | API 域名 |
-| `API_REFERER` | `https://kp.m-team.cc/` | Referer |
-| `WXCORPID` | 空 | 企业微信配置 |
-| `WXAGENTSECRET` | 空 | 企业微信配置 |
-| `WXAGENTID` | `0` | 企业微信配置 |
-| `WXUSERID` | `@all` | 企业微信配置 |
-| `MINDELAY` | `0` | 随机延迟最小值（分钟） |
-| `MAXDELAY` | `0` | 随机延迟最大值（分钟） |
-| `TIME_OUT` | `60` | 请求超时秒数 |
-| `DB_PATH` | `/data/cookie.db` | SQLite 数据库路径 |
-| `VERSION` | `1.1.4` | 请求头版本字段 |
-| `WEB_VERSION` | `1140` | 请求头 webversion 字段 |
-| `M_TEAM_DID` | 空 | 设备 DID |
-| `DING_TALK_ROBOT_WEBHOOK_TOKEN` | 空 | 钉钉配置（预留） |
-| `DING_TALK_ROBOT_SECRET` | 空 | 钉钉配置（预留） |
-| `DING_TALK_ROBOT_AT_MOBILES` | 空 | 钉钉配置（预留） |
-| `TGBOT_TOKEN` | 空 | Telegram Bot Token |
-| `TGBOT_CHAT_ID` | `0` | Telegram Chat ID |
-| `TGBOT_PROXY` | 空 | Telegram 代理 |
-| `FEISHU_WEBHOOKURL` | 空 | 飞书 Webhook |
-| `FEISHU_SECRET` | 空 | 飞书签名密钥（当前未参与签名逻辑） |
-| `NTFY_URL` | 空 | ntfy 服务地址 |
-| `NTFY_TOPIC` | 空 | ntfy topic |
-| `NTFY_USER` | 空 | ntfy basic auth 用户名 |
-| `NTFY_PASSWORD` | 空 | ntfy basic auth 密码 |
-| `NTFY_TOKEN` | 空 | ntfy bearer token |
-| `COOKIE_MODE` | `normal` | `strict` 或失败次数较多时清理本地 token |
+| `HOST` | `0.0.0.0` | Web 服务监听地址 |
+| `PORT` | `8000` | Web 服务端口 |
+| `DB_PATH` | `./mtlogin.db` | SQLite 数据库路径 |
+| `LOG_FILE` | `./mtlogin.log` | 日志文件路径 |
+| `ADMIN_USERNAME` | `admin` | 初始管理员用户名 |
+| `ADMIN_PASSWORD` | `admin123456` | 初始管理员密码，仅首次初始化时使用 |
+| `SECRET_KEY` | 随机生成 | Flask Session 密钥 |
 
-## 配置优先级
+M-Team 相关参数仍然支持通过环境变量提供初始默认值，后台未保存配置时会使用这些默认值：
 
-1. 源码中的 `LOCAL_CONFIG_OVERRIDES`（仅当 `--use-local-config` 开启时）
-2. 环境变量
-3. 命令行参数（同名项会覆盖前两者）
+- `USERNAME`
+- `PASSWORD`
+- `TOTPSECRET`
+- `CRONTAB`
+- `PROXY`
+- `M_TEAM_AUTH`
+- `M_TEAM_DID`
+- `API_HOST`
+- `API_REFERER`
+- `TGBOT_TOKEN`
+- `TGBOT_CHAT_ID`
+- `TGBOT_PROXY`
+- `TIME_OUT`
+- `COOKIE_MODE`
 
-## 本地数据与缓存
+## 兼容的脚本模式
 
-脚本使用 SQLite 保存登录态，默认数据库路径：`/data/cookie.db`（可改为 `--db-path`）。
+原来的 `mtlogin.py` 仍然保留，可以继续单独作为脚本运行：
 
-`kv` 表常见键值：
+```bash
+python mtlogin.py --username "站点用户名" --password "站点密码" --totpsecret "TOTP密钥"
+```
 
-- `m-team-auth`：Authorization token
-- `m-team-did`：设备 DID
-- `m-team-visitorid`：visitorid
+也仍然支持：
 
-## 日志说明
+- `--proxy`
+- `--crontab`
+- `--skip-cache`
+- `--log-file`
+- `--db-path`
 
-- 控制台会输出每次 HTTP 请求与响应（包含请求头/响应体）
-- 使用 `--log-file` 时会同时写入文件
-- 如日志中包含敏感信息，请注意权限控制与脱敏
+## 安全说明
 
-## 退出行为
-
-当前 `main` 流程是“单次执行”：
-
-1. 构建配置
-2. 执行一次任务
-3. 退出进程
-
-如果你希望按 `CRONTAB` 持续运行，需要把主流程改为调用 `job.loop()`。
-
-## 常见问题
-
-### 1) 提示“检测到本地缓存 token/did，跳过登录”
-
-说明数据库里已有缓存凭据，脚本会直接复用。
-
-### 2) 提示“连接成功，但更新状态失败”
-
-通常表示登录和鉴权成功，但 `updateLastBrowse` 接口返回了业务失败（例如频率限制或服务端策略变化）。
-
-### 3) 如何清理缓存并强制重新登录
-
-删除你配置的数据库文件（例如 `./mtlogin.db`）后重跑，或在失败策略触发时让脚本自动清理。
-
-## 安全建议
-
-- 不要把真实账号密码、TOTP 密钥、Bot Token 提交到 GitHub
-- 建议通过环境变量注入敏感配置
-- 建议将数据库文件和日志文件加入 `.gitignore`
+- 管理员密码以哈希形式保存在 SQLite 中。
+- M-Team 密码和 TOTP 需要可逆使用，所以仍会明文保存在本地数据库里。
+- HTTP 调试日志已对密码、OTP 和 Authorization 做脱敏，但仍建议限制数据库和日志文件权限。

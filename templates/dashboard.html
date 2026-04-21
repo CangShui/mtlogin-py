@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MTLogin 管理后台</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --card: #fffdf9;
+      --line: #ddd3c5;
+      --text: #221d17;
+      --muted: #6d6459;
+      --accent: #8f532c;
+      --accent-strong: #6d3d1f;
+      --danger: #a33b3b;
+      --ok: #2f6b48;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top right, rgba(143, 83, 44, 0.12), transparent 28%),
+        linear-gradient(180deg, #f5f2eb, #ede3d5);
+      color: var(--text);
+      font-family: "Helvetica Neue", "PingFang SC", sans-serif;
+    }
+    .shell {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 24px auto 40px;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .topbar h1 { margin: 0; font-size: 28px; }
+    .topbar p { margin: 6px 0 0; color: var(--muted); }
+    .topbar a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+    }
+    .card {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--card);
+      box-shadow: 0 16px 48px rgba(45, 26, 8, 0.07);
+    }
+    .card + .card { margin-top: 18px; }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 20px;
+    }
+    .flash {
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+    .flash.error { background: rgba(163, 59, 59, 0.12); color: var(--danger); }
+    .flash.success { background: rgba(47, 107, 72, 0.12); color: var(--ok); }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .stat {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.6);
+    }
+    .stat strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    form { margin: 0; }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    label {
+      display: block;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    .wide { grid-column: 1 / -1; }
+    input, select, textarea {
+      width: 100%;
+      margin-top: 6px;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      font: inherit;
+      color: inherit;
+    }
+    textarea {
+      min-height: 320px;
+      resize: vertical;
+      font-family: "SFMono-Regular", "Menlo", monospace;
+      font-size: 12px;
+    }
+    .hint {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    button {
+      padding: 11px 14px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #3e3a35;
+    }
+    button:hover { background: var(--accent-strong); }
+    button.secondary:hover { background: #272421; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(143, 83, 44, 0.1);
+      font-size: 13px;
+      color: var(--accent-strong);
+    }
+    .status-pill.error {
+      background: rgba(163, 59, 59, 0.12);
+      color: var(--danger);
+    }
+    .status-pill.success {
+      background: rgba(47, 107, 72, 0.12);
+      color: var(--ok);
+    }
+    @media (max-width: 960px) {
+      .grid { grid-template-columns: 1fr; }
+      .form-grid, .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <div>
+        <h1>MTLogin 管理后台</h1>
+        <p>当前管理员：{{ admin_username }}</p>
+      </div>
+      <a href="{{ url_for('logout') }}">退出登录</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="grid">
+      <section>
+        <div class="card">
+          <h2>执行状态</h2>
+          <p class="status-pill {{ state.status if state.status in ['success', 'error'] else '' }}">
+            当前状态：{{ state.status }}
+          </p>
+          <div class="stats">
+            <div class="stat"><strong>调度器状态</strong>{{ state.scheduler_status or 'idle' }}</div>
+            <div class="stat"><strong>调度状态</strong>{{ state.schedule_message or '未设置' }}</div>
+            <div class="stat"><strong>下次执行</strong>{{ state.next_run_at or '未计划' }}</div>
+            <div class="stat"><strong>最后模式</strong>{{ state.last_run_mode or '无' }}</div>
+            <div class="stat"><strong>最近账号</strong>{{ state.last_username or '无' }}</div>
+            <div class="stat"><strong>开始时间</strong>{{ state.last_started_at or '无' }}</div>
+            <div class="stat"><strong>结束时间</strong>{{ state.last_finished_at or '无' }}</div>
+            <div class="stat"><strong>上传量</strong>{{ state.last_uploaded or '-' }}</div>
+            <div class="stat"><strong>下载量</strong>{{ state.last_downloaded or '-' }}</div>
+            <div class="stat"><strong>魔力值</strong>{{ state.last_bonus or '-' }}</div>
+            <div class="stat"><strong>最后浏览</strong>{{ state.last_browse or '-' }}</div>
+          </div>
+          <label class="wide">
+            最近结果
+            <input type="text" value="{{ state.last_message or '暂无执行记录' }}" readonly>
+          </label>
+          <form method="post" action="{{ url_for('run_now') }}">
+            <div class="actions">
+              <button type="submit">立即执行一次</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <h2>任务配置</h2>
+          <form method="post" action="{{ url_for('save_settings') }}">
+            <div class="form-grid">
+              <label>
+                M-Team 用户名
+                <input type="text" name="username" value="{{ settings.username }}">
+              </label>
+              <label>
+                M-Team 密码
+                <input type="password" name="password" placeholder="{{ '已保存，留空不变' if secret_status.password else '留空表示未配置' }}">
+              </label>
+              <label>
+                TOTP 密钥
+                <input type="password" name="totpsecret" placeholder="{{ '已保存，留空不变' if secret_status.totpsecret else '留空表示未配置' }}">
+              </label>
+              <label>
+                代理
+                <input type="text" name="proxy" value="{{ settings.proxy }}" placeholder="http://127.0.0.1:3301">
+              </label>
+              <label>
+                Cron 表达式
+                <input type="text" name="crontab" value="{{ settings.crontab }}" placeholder="2 */2 * * *">
+              </label>
+              <label>
+                API Host
+                <input type="text" name="api_host" value="{{ settings.api_host }}">
+              </label>
+              <label class="wide">
+                API Referer
+                <input type="text" name="referer" value="{{ settings.referer }}">
+              </label>
+              <label>
+                M-Team Auth Token
+                <input type="password" name="m_team_auth" placeholder="{{ '已保存，留空不变' if secret_status.m_team_auth else '可选，留空表示未配置' }}">
+              </label>
+              <label>
+                M-Team DID
+                <input type="text" name="m_team_did" value="{{ settings.m_team_did }}">
+              </label>
+              <label>
+                Telegram Bot Token
+                <input type="password" name="tgbot_token" placeholder="{{ '已保存，留空不变' if secret_status.tgbot_token else '留空表示未配置' }}">
+              </label>
+              <label>
+                Telegram Chat ID
+                <input type="number" name="tgbot_chat_id" value="{{ settings.tgbot_chat_id }}">
+              </label>
+              <label>
+                Telegram 代理
+                <input type="text" name="tgbot_proxy" value="{{ settings.tgbot_proxy }}">
+              </label>
+              <label>
+                超时秒数
+                <input type="number" name="timeout" value="{{ settings.timeout }}">
+              </label>
+              <label>
+                Cookie 模式
+                <select name="cookie_mode">
+                  <option value="normal" {% if settings.cookie_mode == 'normal' %}selected{% endif %}>normal</option>
+                  <option value="strict" {% if settings.cookie_mode == 'strict' %}selected{% endif %}>strict</option>
+                </select>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; margin-top:28px;">
+                <input type="checkbox" name="skip_cache" {% if settings.skip_cache %}checked{% endif %} style="width:auto; margin:0;">
+                每次都跳过缓存并强制重新登录
+              </label>
+            </div>
+            <p class="hint">密码、TOTP、鉴权 Token 留空时不会覆盖当前已保存值。</p>
+            <div class="actions">
+              <button type="submit">保存配置</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section>
+        <div class="card">
+          <h2>管理员账号</h2>
+          <form method="post" action="{{ url_for('update_admin') }}">
+            <label>
+              新管理员账号
+              <input type="text" name="admin_username" value="{{ admin_username }}">
+            </label>
+            <label>
+              当前密码
+              <input type="password" name="current_password" required>
+            </label>
+            <label>
+              新密码
+              <input type="password" name="new_password" placeholder="留空表示不修改密码">
+            </label>
+            <label>
+              确认新密码
+              <input type="password" name="confirm_password" placeholder="留空表示不修改密码">
+            </label>
+            <div class="actions">
+              <button type="submit" class="secondary">更新管理员账号</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <h2>最近日志</h2>
+          <textarea readonly>{{ log_tail }}</textarea>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
